@@ -6,6 +6,47 @@
  */
 
 /**
+ * Implements hook_help().
+ */
+
+function protected_submissions_help($path, $arg) {
+  switch ($path) {
+   case 'admin/help#protected_submissions':
+     // Help text for the admin section, using the module name in the path.
+     return t('<h2>Description</h2>
+      Protected Submissions is a light-weight, non-invasive spam protection module
+      that enables rejection of node, comment, webform, user profile and contact form
+      submissions which contain preset patterns.
+
+      <h2>How it works</h2>
+      If a user attempts to post a webform, node, comment or a contact form
+      containing a preset pattern in the name, subject or any other text type
+      field, the submission is rejected.
+
+      Roles can be configured to bypass the Protected Submissions validation.
+
+      The number of rejected submissions is shown on the
+      <a href="/admin/reports/status">Reports > Status report</a> page.
+
+      <h2>Configuration</h2>
+
+      Go to the <a href="/admin/config/content/protected_submissions">Configuration >
+      Content authoring > Protected Submissions configuration</a> page and set
+      the reject message text and the patterns to ban.
+
+      If you want to protect only anonymous submissions, then make sure to go
+      to <a href="/admin/people/permissions#module-protected_submissions">People
+      > Permissions</a> page and put a check mark for authenticated user role
+      next to the <i>Bypass Protected Submissions validation</i> option.
+
+      <h2>Troubleshooting</h2>
+
+      Report all the problems on <a href="https://www.drupal.org/project/issues/search/protected_submissions">the project\'s issues</a> page.');
+
+  }
+}
+
+/**
  * Implements hook_permission().
  */
 function protected_submissions_permission() {
