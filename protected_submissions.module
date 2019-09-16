@@ -1,0 +1,176 @@
+<?php
+
+/**
+ * @file
+ * Blocks submissions from anonymous users that contain pre-defined strings.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function protected_submissions_permission() {
+  return array(
+    'bypass protected_submissions' => array(
+      'title' => t('Bypass <a href="@protected_submissions">Protected Submissions</a> validation', array('@protected_submissions' => url('admin/config/content/protected_submissions'))),
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function protected_submissions_menu() {
+  $items = array();
+  $items['admin/config/content/protected_submissions'] = array(
+    'title' => 'Protected Submissions',
+    'description' => 'Configure the Protected Submissions module settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('protected_submissions_config'),
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+  return $items;
+}
+
+/**
+ * Administrative settings form.
+ */
+function protected_submissions_config() {
+  $form = array();
+
+  // Message displayed to users when submission is rejected.
+  $form['protected_submissions_reject_message'] = array(
+    '#type' => 'textfield',
+    '#default_value' => protected_submissions_variable_get('protected_submissions_reject_message'),
+    '#title' => t('Reject message'),
+    '#size' => 60,
+    '#maxlength' => 256,
+    '#required' => TRUE,
+    '#description' => t('Enter a message to display when submission of undesired pattern is attempted.'),
+  );
+
+  // Reject patterns.
+  $form['protected_submissions_reject_patterns'] = array(
+    '#type' => 'textarea',
+    '#rows' => 10,
+    '#columns' => 60,
+    '#default_value' => protected_submissions_variable_get('protected_submissions_reject_patterns'),
+    '#title' => t('Reject patterns'),
+    '#required' => TRUE,
+    '#description' => t('Enter words or patterns to reject, separating them with commas or new lines.'),
+  );
+
+  return system_settings_form($form);
+}
+
+/**
+ * Utility function for getting variable values.
+ */
+function protected_submissions_variable_get($variable_name) {
+  $defaults = array(
+    'protected_submissions_reject_message' => t('Oops! It looks like your post contains spam content. If you believe otherwise, please contact us. We apologize for the inconvenience.'),
+    'protected_submissions_reject_patterns' => "http://, https://, www, ftp://, mailto:, smb://, afp://, file://, gopher://, news://, ssl://, sslv2://, sslv3://, tls://, tcp://, udp://\nsex, porn, fuck, free, win, captcha, spam",
+    'protected_submissions_rejected' => 0,
+  );
+  return variable_get($variable_name, (array_key_exists($variable_name, $defaults) ? $defaults[$variable_name] : ''));
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function protected_submissions_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+
+  // Exit early if user bypass permission.
+  // Not using user_access(), because user #1 has all privilages per
+  // https://api.drupal.org/api/drupal/modules!user!user.module/function/user_access/7.x
+  $found_key = array_search(TRUE, array_column(user_role_permissions($user->roles), 'bypass protected_submissions'));
+  if ($found_key !== FALSE) {
+    return;
+  }
+
+  if (strpos($form_id, '_node_form') !== FALSE || strpos($form_id, 'comment_node_') !== FALSE || strpos($form_id, 'contact_') !== FALSE || strpos($form_id, 'webform_') !== FALSE) {
+    $form['#validate'][] = '_protected_submissions_validate';
+  }
+}
+
+/**
+ * Validate the submitted text fields.
+ */
+function _protected_submissions_validate($form, &$form_state) {
+
+  $check_text = NULL;
+  // Get user defined reject message.
+  $reject_message = protected_submissions_variable_get('protected_submissions_reject_message');
+  // Get list of user defined trigger patterns.
+  $reject_patterns = protected_submissions_variable_get('protected_submissions_reject_patterns');
+  // Turn multiline string into a single comma separated string.
+  $reject_patterns = preg_replace('#\s+#', ',', trim($reject_patterns));
+  $reject_patterns = str_replace(',,', ',', $reject_patterns);
+  // Turn to array.
+  $reject_patterns = explode(",", $reject_patterns);
+  // Get submitted values;.
+  $values = $form_state['values'];
+
+  if (strpos($values['form_id'], 'webform_') !== FALSE) {
+    // Webforms.
+    foreach ($values['submitted'] as $key => $value) {
+      $check_text .= ' ' . $value;
+    }
+  }
+  else {
+    // Nodes, comments, contact forms.
+    foreach ($values as $key => $value) {
+      if (isset($form[$key])) {
+
+        if (isset($form[$key]['#type'])) {
+          // Node, comment or contact form title (textfield) and contact message (textarea).
+          if ($form[$key]['#type'] == 'textfield' || $form[$key]['#type'] == 'textarea') {
+            $check_text .= ' ' . $form[$key]['#value'];
+          }
+        }
+        if (isset($form[$key][LANGUAGE_NONE][0]['value']['#type'])) {
+          // Node text area or field.
+          if ($form[$key][LANGUAGE_NONE][0]['value']['#type'] == 'textarea' || $form[$key][LANGUAGE_NONE][0]['value']['#type'] == 'textfield') {
+            // Find all values.
+            $array_shift = array_shift($values[$key]);
+            foreach ($array_shift as $var) {
+              if (!empty($var['value'])) {
+                $check_text .= ' ' . $var['value'];
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Search for reject patterns in the concatenated text.
+  foreach ($reject_patterns as $pattern) {
+    if (strpos($check_text, $pattern) !== FALSE) {
+      form_set_error("user", $reject_message);
+      $rejected = protected_submissions_variable_get('protected_submissions_rejected');
+      $rejected = $rejected + 1;
+      // Save the new value.
+      variable_set('protected_submissions_rejected', $rejected);
+      // Since the first pattern found break the loop.
+      break;
+    }
+  }
+}
+
+/**
+ * Implements hook_requirements().
+ * Provides stats for rejected submissions on the status page.
+ */
+function protected_submissions_requirements($phase) {
+  $requirements = array();
+  $rejected = protected_submissions_variable_get('protected_submissions_rejected');
+  $requirements['protected_submissions'] = array(
+    'title' => t('Protected submissions'),
+    'value' => t('Total of @count submissions containing <a href="@patterns">spam patterns</a> have been rejected.',
+    array('@count' => $rejected, '@patterns' => '/admin/config/content/protected_submissions')),
+    'severity' => REQUIREMENT_INFO,
+  );
+  return $requirements;
+}

@@ -1,0 +1,20 @@
+<?php
+/**
+ * @file
+ * Install, update and uninstall functions for the protected_submissions
+ * module.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function protected_submissions_uninstall() {
+  $result = db_select('variable', 'v')
+    ->fields('v', array('name'))
+    ->condition('name', 'protected_submissions%', 'LIKE')
+    ->execute();
+  foreach ($result as $row) {
+    variable_del($row->name);
+  }
+  drupal_set_message(t('Protected Submissions module has been uninstalled.'));
+}
