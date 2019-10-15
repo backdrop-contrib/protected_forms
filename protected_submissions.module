@@ -155,8 +155,14 @@ function _protected_submissions_validate($form, &$form_state) {
 
   if (strpos($values['form_id'], 'webform_') !== FALSE) {
     // Webforms.
-    foreach ($values['submitted'] as $key => $value) {
-      $check_text .= ' ' . $value;
+    if (isset($values['submitted'])) {
+      foreach ($values['submitted'] as $key => $value) {
+        if ($form['submitted'][$key]['#webform_component']['form_key'] == $key) {
+          if ($form['submitted'][$key]['#webform_component']['type'] == 'textfield' || $form['submitted'][$key]['#webform_component']['type'] == 'textarea') {
+            $check_text .= ' ' . $value;
+          }
+        }
+      }
     }
   }
   else {
