@@ -122,7 +122,7 @@ function protected_submissions_variable_get($variable_name) {
 function protected_submissions_form_alter(&$form, &$form_state, $form_id) {
   global $user;
 
-  // Exit early if user bypass permission.
+  // Exit early if user has bypass permission.
   // Not using user_access(), because user #1 has all privilages per
   // https://api.drupal.org/api/drupal/modules!user!user.module/function/user_access/7.x
   $found_key = array_search(TRUE, array_column(user_role_permissions($user->roles), 'bypass protected_submissions'));
