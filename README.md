@@ -2,7 +2,8 @@ Description
 -----------
 **Protected Submissions** is a light-weight, non-intrusive spam protection
 module that enables rejection of node, comment, webform, user profile, contact
-form and revision log submissions which contain preset patterns.
+form and revision log submissions which contain undesired language scripts or
+preset patterns.
 
 How it works
 ------------
@@ -14,6 +15,9 @@ Roles can be configured to bypass the _Protected Submissions validation_.
 
 The number of rejected submissions is shown on the **Reports > Status report**
 (`admin/reports/status`) page.
+
+The rejected messages are logged and can be viewed on the **Reports > Recent
+log messages** (`admin/reports/dblog`) page.
 
 Installation
 ------------

@@ -28,6 +28,9 @@ function protected_submissions_help($path, $arg) {
       The number of rejected submissions is shown on the
       <a href="/admin/reports/status">Reports > Status report</a> page.
 
+      The rejected messages are logged and can be viewed on the
+      <a href="/admin/reports/dblog">Reports > Recent log messages</a> page.
+
       <h2>Configuration</h2>
 
       Go to the <a href="/admin/config/content/protected_submissions">Configuration >
