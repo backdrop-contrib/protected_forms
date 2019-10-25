@@ -3,3 +3,4 @@ description = Prevents submissions that contain undesired patterns.
 package = Spam control
 core = 7.x
 configure = admin/config/content/protected_submissions
+stylesheets[all][] = css/protected_submissions.css
