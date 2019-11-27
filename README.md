@@ -34,8 +34,8 @@ drush -y en protected_submissions
 Configuration
 -------------
 Go to the **Protected Submissions** configuration page
-(`/admin/config/content/protected_submissions`) and set the reject message text
-and the trigger patterns for rejection.
+(`/admin/config/content/protected_submissions`), set the allowed language
+scripts, reject message text and the trigger patterns for rejection.
 
 If you want to protect only anonymous submissions, then make sure to go to
 Permissions page (`/admin/people/permissions#module-protected_submissions`) and
