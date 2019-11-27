@@ -82,9 +82,9 @@ function protected_submissions_menu() {
 function protected_submissions_config() {
   $form = array();
 
+  // Allowed language scripts.
   $language_scripts = protected_submissions_variable_get('protected_submissions_language_scripts');
   $language_scripts_keys = array_keys($language_scripts);
-
   $form['protected_submissions_allowed_scripts'] = array(
     '#type' => 'checkboxes',
     '#options' => drupal_map_assoc($language_scripts_keys),
@@ -93,7 +93,6 @@ function protected_submissions_config() {
     '#required' => TRUE,
     '#description' => t('Select language scripts allowed for submission.'),
   );
-
   // Message displayed to users when submission is rejected.
   $form['protected_submissions_reject_message'] = array(
     '#type' => 'textfield',
@@ -104,18 +103,17 @@ function protected_submissions_config() {
     '#required' => TRUE,
     '#description' => t('Enter a message to display when submission of undesired pattern is attempted.'),
   );
-
   // Reject patterns.
+  $reject_patterns = protected_submissions_variable_get('protected_submissions_reject_patterns');
   $form['protected_submissions_reject_patterns'] = array(
     '#type' => 'textarea',
     '#rows' => 10,
     '#columns' => 60,
-    '#default_value' => protected_submissions_variable_get('protected_submissions_reject_patterns'),
+    '#default_value' => strtolower($reject_patterns),
     '#title' => t('Reject patterns'),
     '#required' => TRUE,
     '#description' => t('Enter words or patterns to reject, separating them with commas or new lines.'),
   );
-
   return system_settings_form($form);
 }
 
@@ -463,7 +461,7 @@ function protected_submissions_variable_get($variable_name) {
   ksort($ucr);
   $defaults = array(
     'protected_submissions_reject_message' => t('Oops! It looks like your post contains spam content. If you believe otherwise, please contact the website\'s administrator. We apologize for the inconvenience.'),
-    'protected_submissions_reject_patterns' => "http://, https://, www, ftp://, mailto:, smb://, afp://, file://, gopher://, news://, ssl://, sslv2://, sslv3://, tls://, tcp://, udp://, url=\nsex, porn, fuck, free, win, captcha, spam, Hello. And Bye., reading this message, great website, late client",
+    'protected_submissions_reject_patterns' => "http://, https://, www, ftp://, mailto:, smb://, afp://, file://, gopher://, news://, ssl://, sslv2://, sslv3://, tls://, tcp://, udp://, url=\nsex, porn, fuck, free, win, captcha, spam, hello. and bye., reading this message, great website, late client",
     'protected_submissions_rejected' => 0,
     'protected_submissions_allowed_scripts' => array('Latin'),
     'protected_submissions_language_scripts' => $ucr,
@@ -478,13 +476,12 @@ function protected_submissions_form_alter(&$form, &$form_state, $form_id) {
   global $user;
 
   // Exit early if current user has bypass permission.
-  // Not using user_access(), because user #1 has all privilages per
+  // Not using user_access(), because user #1 has all privileges per
   // https://api.drupal.org/api/drupal/modules!user!user.module/function/user_access/7.x
   $found_key = array_search(TRUE, array_column(user_role_permissions($user->roles), 'bypass protected_submissions'));
   if ($found_key !== FALSE) {
     return;
   }
-
   if (strpos($form_id, '_node_form') !== FALSE || strpos($form_id, 'comment_node_') !== FALSE || strpos($form_id, 'contact_') !== FALSE || strpos($form_id, 'webform_') !== FALSE) {
     $form['#validate'][] = '_protected_submissions_validate';
   }
@@ -500,10 +497,11 @@ function _protected_submissions_validate($form, &$form_state) {
   $reject_message = protected_submissions_variable_get('protected_submissions_reject_message');
   // Get list of user defined trigger patterns.
   $reject_patterns = protected_submissions_variable_get('protected_submissions_reject_patterns');
+  $reject_patterns = strtolower($reject_patterns);
   // Get the quantity of previously rejected submissions.
   $rejected = protected_submissions_variable_get('protected_submissions_rejected');
   // Turn multiline string into a single comma separated string.
-  $reject_patterns = preg_replace('#\s+#', ',', trim($reject_patterns));
+  $reject_patterns = str_replace(array("\r","\n"),",",$reject_patterns);
   $reject_patterns = str_replace(',,', ',', $reject_patterns);
   // Turn to array.
   $reject_patterns = explode(",", $reject_patterns);
@@ -555,19 +553,19 @@ function _protected_submissions_validate($form, &$form_state) {
   $stripped = preg_replace('/[[:punct:]]+/', '', trim($stripped));
   $stripped = preg_replace('/\s+/', '', $stripped);
 
-  for ($i=0; $i < 300; $i++) {
+  for ($i=0; $i < 30; $i++) {
     // Get a random letter from text stripped of all special characters and numbers.
     mb_internal_encoding("UTF-8");
     $random_char = mb_substr($stripped, rand(0, mb_strlen($stripped) - 1), 1);
     if (!empty(trim($random_char))) {
-      if ($i < 300) {
+      if ($i < 30) {
         if (_if_char_allowed($random_char) == FALSE) {
           form_set_error("user", $reject_message);
           $rejected = $rejected + 1;
           // Save the new value.
           variable_set('protected_submissions_rejected', $rejected);
           // Save the watchdog message.
-          watchdog('rejected submission', "Rejected:<em>$check_text</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
+          watchdog('rejected language', "Rejected:<em>$check_text</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
           // Since the first pattern found break the loop.
           break;
         }
@@ -576,14 +574,15 @@ function _protected_submissions_validate($form, &$form_state) {
   }
 
   // Search for reject patterns in the concatenated text.
+  $check_text = strtolower($check_text);
   foreach ($reject_patterns as $pattern) {
-    if (strpos($check_text, $pattern) !== FALSE) {
+    if (preg_match("@\b$pattern\b@i", $check_text)) {
       form_set_error("user", $reject_message);
       $rejected = $rejected + 1;
       // Save the new value.
       variable_set('protected_submissions_rejected', $rejected);
       // Save the watchdog message.
-      watchdog('rejected submission', "Rejected:<em>$check_text</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
+      watchdog('rejected pattern', "Rejected:<em>$check_text</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
       // Since the first pattern found break the loop.
       break;
     }
