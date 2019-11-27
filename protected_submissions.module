@@ -90,7 +90,7 @@ function protected_submissions_config() {
     '#options' => drupal_map_assoc($language_scripts_keys),
     '#default_value' => protected_submissions_variable_get('protected_submissions_allowed_scripts'),
     '#title' => t('Allowed language scripts'),
-    '#required' => FALSE,
+    '#required' => TRUE,
     '#description' => t('Select language scripts allowed for submission.'),
   );
 
@@ -567,7 +567,7 @@ function _protected_submissions_validate($form, &$form_state) {
           // Save the new value.
           variable_set('protected_submissions_rejected', $rejected);
           // Save the watchdog message.
-          watchdog('Protected Submissions', "Comment rejected:<em>$check_text</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
+          watchdog('rejected submission', "Rejected:<em>$check_text</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
           // Since the first pattern found break the loop.
           break;
         }
@@ -583,7 +583,7 @@ function _protected_submissions_validate($form, &$form_state) {
       // Save the new value.
       variable_set('protected_submissions_rejected', $rejected);
       // Save the watchdog message.
-      watchdog('protected_submissions', "Comment rejected:<em>$check_text</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
+      watchdog('rejected submission', "Rejected:<em>$check_text</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
       // Since the first pattern found break the loop.
       break;
     }
