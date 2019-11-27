@@ -605,7 +605,6 @@ function _if_char_allowed($random_char) {
         $range = explode('-', $range);
         // Turn first and last Unicode hex to decimals and compare with the character.
         if (hexdec($range[0]) < $char && $char < hexdec($range[1])) {
-          #dpm($lang_script);
           $found = TRUE;
         }
       }
