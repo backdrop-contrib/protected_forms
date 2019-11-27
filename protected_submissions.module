@@ -505,6 +505,8 @@ function _protected_submissions_validate($form, &$form_state) {
   $reject_patterns = str_replace(',,', ',', $reject_patterns);
   // Turn to array.
   $reject_patterns = explode(",", $reject_patterns);
+  // Trim white spaces of array values in php.
+  $reject_patterns = array_map('trim', $reject_patterns);
   // Get submitted values;.
   $values = $form_state['values'];
 
