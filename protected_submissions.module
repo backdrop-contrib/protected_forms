@@ -97,7 +97,7 @@ function protected_submissions_config() {
   $form['protected_submissions_check_quantity'] = array(
     '#type' => 'textfield',
     '#default_value' => protected_submissions_variable_get('protected_submissions_check_quantity'),
-    '#title' => t('Number of characters for language validation'),
+    '#title' => t('Number of characters to validate'),
     '#size' => 5,
     '#required' => TRUE,
     '#description' => t('Spam texts can be constructed using mixed characters from multiple languages.

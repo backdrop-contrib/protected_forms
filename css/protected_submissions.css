@@ -1,12 +1,16 @@
-.form-checkboxes {
+#protected-submissions-config .form-type-checkboxes {
   margin-left: 5px;
+  line-height: 1.5em;
 }
 
-.form-checkboxes .form-item {
+#protected-submissions-config .form-type-checkboxes .form-item {
   width: 19%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   display: inline-block;
   margin: 0px;
+}
+#protected-submissions-config .form-type-checkboxes  .form-item {
+    padding: 0;
 }
