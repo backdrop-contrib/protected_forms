@@ -35,7 +35,8 @@ function protected_submissions_help($path, $arg) {
 
       Go to the <a href="/admin/config/content/protected_submissions">Configuration >
       Content authoring > Protected Submissions configuration</a> page, select
-      allowed language scripts and set the reject message text and the patterns to ban.
+      allowed language scripts, number of characters for lanaguage scripts validation,
+      and set the reject message text and the patterns to ban.
 
       If you want to protect only anonymous submissions, then make sure to go
       to <a href="/admin/people/permissions#module-protected_submissions">People
@@ -44,7 +45,7 @@ function protected_submissions_help($path, $arg) {
 
       <h2>Troubleshooting</h2>
 
-      Report all the problems on <a href="https://www.drupal.org/project/issues/search/protected_submissions">the project\'s issues</a> page.');
+      Report all problems on <a href="https://www.drupal.org/project/issues/search/protected_submissions">the project\'s issues</a> page.');
 
   }
 }
@@ -92,6 +93,16 @@ function protected_submissions_config() {
     '#title' => t('Allowed language scripts'),
     '#required' => TRUE,
     '#description' => t('Select language scripts allowed for submission.'),
+  );
+  $form['protected_submissions_check_quantity'] = array(
+    '#type' => 'textfield',
+    '#default_value' => protected_submissions_variable_get('protected_submissions_check_quantity'),
+    '#title' => t('Number of characters for language validation'),
+    '#size' => 5,
+    '#required' => TRUE,
+    '#description' => t('Spam texts can be constructed using mixed characters from multiple languages.
+    Checking each character would cause performance overhead, so we validate only randomly selected characters.
+    Indicate how many characters from submitted text should be validated for allowed language scripts.'),
   );
   // Message displayed to users when submission is rejected.
   $form['protected_submissions_reject_message'] = array(
@@ -465,6 +476,7 @@ function protected_submissions_variable_get($variable_name) {
     'protected_submissions_rejected' => 0,
     'protected_submissions_allowed_scripts' => array('Latin'),
     'protected_submissions_language_scripts' => $ucr,
+    'protected_submissions_check_quantity' => 50,
   );
   return variable_get($variable_name, (array_key_exists($variable_name, $defaults) ? $defaults[$variable_name] : ''));
 }
@@ -549,18 +561,24 @@ function _protected_submissions_validate($form, &$form_state) {
     }
   }
 
-  // Check if random UTF characters from the text belong to allowed
-  // language scripts.
+  /**
+  * Check if random UTF characters from the text belong to allowed
+  * language scripts.
+  */
+
   $stripped = preg_replace('/[0-9]+/', '', $check_text);
   $stripped = preg_replace('/[[:punct:]]+/', '', trim($stripped));
   $stripped = preg_replace('/\s+/', '', $stripped);
 
-  for ($i=0; $i < 30; $i++) {
+  // Get number of characters for language script validation.
+  $check_quantity = protected_submissions_variable_get('protected_submissions_check_quantity');
+
+  for ($i=0; $i < $check_quantity; $i++) {
     // Get a random letter from text stripped of all special characters and numbers.
     mb_internal_encoding("UTF-8");
     $random_char = mb_substr($stripped, rand(0, mb_strlen($stripped) - 1), 1);
     if (!empty(trim($random_char))) {
-      if ($i < 30) {
+      if ($i < $check_quantity) {
         if (_if_char_allowed($random_char) == FALSE) {
           form_set_error("user", $reject_message);
           $rejected = $rejected + 1;
