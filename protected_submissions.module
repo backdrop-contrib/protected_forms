@@ -549,7 +549,7 @@ function _protected_submissions_validate($form, &$form_state) {
     }
   }
 
-  // Check random UTF characters from the text if they belong to allowed
+  // Check if random UTF characters from the text belong to allowed
   // language scripts.
   $stripped = preg_replace('/[0-9]+/', '', $check_text);
   $stripped = preg_replace('/[[:punct:]]+/', '', trim($stripped));
