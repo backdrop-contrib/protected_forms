@@ -570,6 +570,9 @@ function _protected_submissions_validate($form, &$form_state) {
   $stripped = preg_replace('/[[:punct:]]+/', '', trim($stripped));
   $stripped = preg_replace('/\s+/', '', $stripped);
 
+  // Get language scripts.
+  $allowed_scripts = protected_submissions_variable_get('protected_submissions_allowed_scripts');
+  $language_scripts = protected_submissions_variable_get('protected_submissions_language_scripts');
   // Get number of characters for language script validation.
   $check_quantity = protected_submissions_variable_get('protected_submissions_check_quantity');
 
@@ -579,7 +582,7 @@ function _protected_submissions_validate($form, &$form_state) {
     $random_char = mb_substr($stripped, rand(0, mb_strlen($stripped) - 1), 1);
     if (!empty(trim($random_char))) {
       if ($i < $check_quantity) {
-        if (_if_char_allowed($random_char) == FALSE) {
+        if (_if_char_allowed($random_char, $allowed_scripts, $language_scripts) == FALSE) {
           form_set_error("user", $reject_message);
           $rejected = $rejected + 1;
           // Save the new value.
@@ -610,10 +613,7 @@ function _protected_submissions_validate($form, &$form_state) {
 }
 
 // Helper function to check if character belongs to allowed language scripts.
-function _if_char_allowed($random_char) {
-  // Get language scripts.
-  $allowed_scripts = protected_submissions_variable_get('protected_submissions_allowed_scripts');
-  $language_scripts = protected_submissions_variable_get('protected_submissions_language_scripts');
+function _if_char_allowed($random_char, $allowed_scripts, $language_scripts) {
 
   $char = mb_convert_encoding($random_char, 'UCS-2LE', 'UTF-8');
   $char = ord(substr($char, 1, 1)) * 256 + ord(substr($char, 0, 1));
