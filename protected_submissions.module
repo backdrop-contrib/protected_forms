@@ -135,7 +135,7 @@ function protected_submissions_variable_get($variable_name) {
 
   // Have to use the Unicode Character Ranges since only some languages work with
   // $match = preg_match("/\p{$lang_script}/u", $randomChar); PCRE
-  // exaplined on https://www.php.net/manual/en/regexp.reference.unicode.php
+  // explained on https://www.php.net/manual/en/regexp.reference.unicode.php
   $ucr = array(
     'Arabic' => array(
       '0600 - 06FF',
