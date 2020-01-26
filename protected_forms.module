@@ -102,6 +102,9 @@ function protected_forms_config() {
   return $form;
 }
 
+/**
+ * Validates protected_forms_config() and saves config values.
+ */
 function protected_forms_config_submit($form, &$form_state) {
   $config = config('protected_forms.settings');
   $config->set('allowed_scripts', $form_state['values']['allowed_scripts']);
@@ -206,7 +209,7 @@ function _protected_forms_validate($form, &$form_state) {
     }
   }
 
-  /**
+  /*
    * Check if a random UTF characters from the text belongs to allowed
    * language scripts.
    */
@@ -605,16 +608,16 @@ function _protected_forms_validate($form, &$form_state) {
     }
   }
 
-  /**
+  /*
   * Block user if Database Logging and are enabled.
   */
-  // Prevent admins from getting blocked.
   if (module_exists('ip_blocking') && module_exists('dblog')) {
     if ($pattern_failed == TRUE || $language_failed == TRUE) {
       global $user;
+      // Prevent admins from getting blocked.
       if ($user->uid != '1' && !in_array('administrator', $user->roles)) {
         $ip_address = ip_address();
-        // Count how many times user was cought entering spam.
+        // Count how many times user was caught entering spam.
         $result = db_select('watchdog', 'w')
         ->fields('w')
         ->condition('type', 'protected forms', '=')
@@ -632,7 +635,9 @@ function _protected_forms_validate($form, &$form_state) {
   }
 }
 
-// Helper function to check if character belongs to allowed language scripts.
+/**
+ * Helper function to check if character belongs to allowed language scripts.
+ */
 function _if_char_allowed($random_char, $allowed_scripts, $unicode_character_ranges) {
 
   $char = mb_convert_encoding($random_char, 'UCS-2LE', 'UTF-8');
