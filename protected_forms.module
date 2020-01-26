@@ -1,0 +1,675 @@
+<?php
+
+/**
+ * @file
+ * Blocks submissions from anonymous users that contain pre-defined strings.
+ */
+
+
+/**
+ * Implements hook_permission().
+ */
+function protected_forms_permission() {
+  return array(
+    'bypass protected_forms' => array(
+      'title' => t('Bypass <a href="@protected_forms">Protected Forms</a> validation', array('@protected_forms' => url('admin/config/content/protected_forms'))),
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function protected_forms_menu() {
+  $items = array();
+  $items['admin/config/content/protected_forms'] = array(
+    'title' => 'Protected forms',
+    'description' => 'Configure the allowed language scripts, number of random characters to validate, reject message and reject patterns for the protected forms.',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => array('protected_forms_config'),
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+  return $items;
+}
+
+/**
+ * Administrative settings form.
+ */
+function protected_forms_config() {
+  $config = config('protected_forms.settings');
+
+  // Allowed language scripts.
+  $allowed_scripts = $config->get('allowed_scripts');
+  $allowed_scripts_keys = array_keys($allowed_scripts);
+  sort($allowed_scripts_keys);
+
+  $form['allowed_scripts'] = array(
+    '#type' => 'checkboxes',
+    '#options' => backdrop_map_assoc($allowed_scripts_keys),
+    '#default_value' => $allowed_scripts,
+    '#title' => t('Allowed language scripts'),
+    '#required' => TRUE,
+    '#description' => t('Select language scripts allowed for submission.'),
+  );
+  $form['validate_percent'] = array(
+    '#type' => 'textfield',
+    '#default_value' => $config->get('validate_percent'),
+    '#title' => t('Percentage to validate'),
+    '#size' => 3,
+    '#required' => TRUE,
+    '#description' => t('Spam texts can be constructed using mixed characters from multiple languages.
+    Validating each character would cause performance overhead, especially when large texts are submitted.
+    Therefore, we recommend to start with 20% of randomly selected characters to check, and gradually
+    increase that number in case if characters of dissalowed languages start to slip through the validation.'),
+  );
+  // Message displayed to users when submission is rejected.
+  $form['reject_message'] = array(
+    '#type' => 'textfield',
+    '#default_value' => $config->get('reject_message'),
+    '#title' => t('Reject message'),
+    '#size' => 60,
+    '#maxlength' => 256,
+    '#required' => TRUE,
+    '#description' => t('Enter a message to display when submission of undesired pattern is attempted.'),
+  );
+  // Reject patterns.
+  $reject_patterns = $config->get('reject_patterns');
+  $form['reject_patterns'] = array(
+    '#type' => 'textarea',
+    '#rows' => 10,
+    '#columns' => 60,
+    '#default_value' => strtolower($reject_patterns),
+    '#title' => t('Reject patterns'),
+    '#required' => TRUE,
+    '#description' => t('Enter words or patterns to reject, separating them with commas or new lines.'),
+  );
+  if (module_exists('ip_blocking') && module_exists('dblog')) {
+    $form['ban_threshold'] = array(
+      '#type' => 'textfield',
+      '#size' => 3,
+      '#default_value' => $config->get('ban_threshold'),
+      '#title' => t('Threshold for banning'),
+      '#required' => TRUE,
+      '#description' => t('Set how many times a user\'s IP must be caught spamming to be banned from the site.'),
+    );
+  }
+  $form['actions']['#type'] = 'actions';
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save configuration'),
+  );
+  return $form;
+}
+
+function protected_forms_config_submit($form, &$form_state) {
+  $config = config('protected_forms.settings');
+  $config->set('allowed_scripts', $form_state['values']['allowed_scripts']);
+  if ($form_state['values']['validate_percent'] > 100) {
+    backdrop_set_message(t('Validating more than 100% of submitted texts would cause unnecessary performance overhead.'), 'error');
+    $form_state['values']['validate_percent'] = 100;
+  }
+  elseif ($form_state['values']['validate_percent'] < 5) {
+    backdrop_set_message(t('We recommend to set at least 5% of submitted texts to validate.'), 'error');
+    $form_state['values']['validate_percent'] = 5;
+  }
+  $config->set('validate_percent', $form_state['values']['validate_percent']);
+  $config->set('reject_message', $form_state['values']['reject_message']);
+  $config->set('reject_patterns', $form_state['values']['reject_patterns']);
+  if (isset($form_state['values']['ban_threshold'])) {
+    $config->set('ban_threshold', $form_state['values']['ban_threshold']);
+  }
+  $config->save();
+  backdrop_set_message(t('The configuration options have been saved.'));
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function protected_forms_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+
+  // Not using user_access(), because user #1 has all privileges per
+  // https://api.backdropcms.org/api/backdrop/core%21modules%21user%21user.module/function/user_access/1
+  // and sometimes we need to run tests as user #1.
+  $found_key = array_search(TRUE, array_column(user_role_permissions($user->roles), 'bypass protected_forms'));
+  if ($found_key !== FALSE) {
+    // Exit early if current user has bypass permission.
+    return;
+  }
+  if (strpos($form_id, '_node_form') !== FALSE || strpos($form_id, 'comment_node_') !== FALSE || strpos($form_id, 'contact_') !== FALSE || strpos($form_id, 'webform_') !== FALSE) {
+    $form['#validate'][] = '_protected_forms_validate';
+  }
+}
+
+/**
+ * Validate the submitted text fields.
+ */
+function _protected_forms_validate($form, &$form_state) {
+  $config = config('protected_forms.settings');
+  $user_input = NULL;
+  // Get user defined reject message.
+  $reject_message = $config->get('reject_message');
+  // Get list of user defined trigger patterns.
+  $reject_patterns = $config->get('reject_patterns');
+  $reject_patterns = strtolower($reject_patterns);
+  // Get the quantity of previously rejected submissions.
+  $rejected_posts = $config->get('rejected_posts');
+  // Turn multiline string into a single comma separated string.
+  $reject_patterns = str_replace(array("\r", "\n"), ",", $reject_patterns);
+  $reject_patterns = str_replace(',,', ',', $reject_patterns);
+  // Turn to array.
+  $reject_patterns = explode(",", $reject_patterns);
+  // Trim white spaces of array values in php.
+  $reject_patterns = array_map('trim', $reject_patterns);
+  // Remove empty array members.
+  $reject_patterns = array_filter($reject_patterns);
+  // Get submitted values;.
+  $values = $form_state['values'];
+
+  if (strpos($values['form_id'], 'webform_') !== FALSE) {
+    // Webforms.
+    if (isset($values['submitted'])) {
+      foreach ($values['submitted'] as $key => $value) {
+        if ($form['submitted'][$key]['#webform_component']['form_key'] == $key) {
+          if ($form['submitted'][$key]['#webform_component']['type'] == 'textfield' || $form['submitted'][$key]['#webform_component']['type'] == 'textarea') {
+            $user_input .= ' ' . $value;
+          }
+        }
+      }
+    }
+  }
+  else {
+    // Nodes, comments, contact forms.
+    foreach ($values as $key => $value) {
+      if (isset($form[$key])) {
+
+        if (isset($form[$key]['#type'])) {
+          // Node, comment or contact form title (textfield) and contact message (textarea).
+          if ($form[$key]['#type'] == 'textfield' || $form[$key]['#type'] == 'textarea') {
+            $user_input .= ' ' . $form[$key]['#value'];
+          }
+        }
+        if (isset($form[$key][LANGUAGE_NONE][0]['value']['#type'])) {
+          // Node text area or field.
+          if ($form[$key][LANGUAGE_NONE][0]['value']['#type'] == 'textarea' || $form[$key][LANGUAGE_NONE][0]['value']['#type'] == 'textfield') {
+            // Find all values.
+            $array_shift = array_shift($values[$key]);
+            foreach ($array_shift as $var) {
+              if (!empty($var['value'])) {
+                $user_input .= ' ' . $var['value'];
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Check if a random UTF characters from the text belongs to allowed
+   * language scripts.
+   */
+
+  // Get language scripts.
+  $allowed_scripts = $config->get('allowed_scripts');
+
+  // Have to use the Unicode Character Ranges since only some languages work with
+  // $match = preg_match("/\p{$lang_script}/u", $randomChar); PCRE
+  // explained on https://www.php.net/manual/en/regexp.reference.unicode.php
+  $unicode_character_ranges = array(
+    'Arabic' => array(
+      '0600 - 06FF',
+      'FB50 - FDFF',
+      'FE70 - FEFF',
+    ),
+    'Armenian' => array(
+      '0530 - 058F',
+    ),
+    'Avestan' => array(
+      '10B00 - 10B3F',
+    ),
+    'Balinese' => array(
+      '1B00 - 1B7F',
+    ),
+    'Bamum' => array(
+      'A6A0 – A6FF',
+    ),
+    'Batak' => array(
+      '1BC0 – 1BFF',
+    ),
+    'Bengali' => array(
+      '0980 - 09FF',
+    ),
+    'Bopomofo' => array(
+      '3100 - 312F',
+      '31A0 - 31BF',
+    ),
+    'Brahmi' => array(
+      '11000 – 1107F',
+    ),
+    'Buginese' => array(
+      '1A00-1A1F',
+    ),
+    'Buhid' => array(
+      '1740 - 175F',
+    ),
+    'Canadian Aboriginal' => array(
+      '1400 - 167F',
+    ),
+    'Carian' => array(
+      '102A0 – 102DF',
+    ),
+    'Chakma' => array(
+      '11100 – 1114F',
+    ),
+    'Cham' => array(
+      'AA00 – AA5F',
+    ),
+    'Cherokee' => array(
+      '13A0 - 13FF',
+    ),
+    'CJK' => array(
+      '2E80 - 2EFF',
+      '3000 - 303F',
+      '3200 - 32FF',
+      '3300 - 33FF',
+      '3400 - 4DBF',
+      '4E00 - 9FFF',
+      'F900 - FAFF',
+      'FE30 - FE4F',
+      '20000 - 2A6DF',
+      '2A700 – 2B73F',
+      '2B740 – 2B81F',
+      '2B820 – 2CEAF',
+      '2F800 - 2FA1F',
+    ),
+    'Coptic' => array(
+      '0370 - 03FF',
+      '1F00 - 1FFF',
+    ),
+    'Cuneiform' => array(
+      '12000 – 123FF',
+    ),
+    'Cypriot' => array(
+      '10800 - 1083F',
+    ),
+    'Cyrillic' => array(
+      '0400 - 04FF',
+      '0500 - 052F',
+    ),
+    'Deseret' => array(
+      '10400 - 1044F',
+    ),
+    'Devanagari' => array(
+      '0900 - 097F',
+    ),
+    'Egyptian Hieroglyphs' => array(
+      '13000 – 1342F',
+    ),
+    'Ethiopic' => array(
+      '1200 - 137F',
+    ),
+    'Georgian' => array(
+      '10A0 - 10FF',
+    ),
+    'Glagolitic' => array(
+      '2C00 – 2C5F',
+    ),
+    'Gothic' => array(
+      '10330 - 1034F',
+    ),
+    'Greek' => array(
+      '0370 - 03FF',
+      '1F00 - 1FFF',
+    ),
+    'Gujarati' => array(
+      '0A80 - 0AFF',
+    ),
+    'Gurmukhi' => array(
+      '0A00 - 0A7F',
+    ),
+    'Hangul' => array(
+      'AC00 - D7AF',
+      '1100 - 11FF',
+      '3130 - 318F',
+    ),
+    'Hanunoo' => array(
+      '1720 - 173F',
+    ),
+    'Hebrew' => array(
+      '0590 - 05FF',
+    ),
+    'Hiragana' => array(
+      '3040 - 309F',
+    ),
+    'Imperial Aramaic' => array(
+      '10840 - 1085F',
+    ),
+    'Inscriptional Pahlavi' => array(
+      '‎10B60 - 10B7F',
+    ),
+    'Inscriptional Parthian' => array(
+      '10B40 - 10B5F',
+    ),
+    'Javanese' => array(
+      'A980 – A9DF',
+    ),
+    'Kaithi' => array(
+      '11080 – 110CF',
+    ),
+    'Kanbun' => array(
+      '3190 - 319F',
+    ),
+    'Kangxi' => array(
+      '2F00 - 2FDF',
+    ),
+    'Kannada' => array(
+      '0C80 - 0CFF',
+    ),
+    'Katakana' => array(
+      '30A0 - 30FF',
+      '31F0 - 31FF',
+      '31F0 - 31FF',
+    ),
+    'Kayah Li' => array(
+      'A900 – A92F',
+    ),
+    'Kharoshthi' => array(
+      '10A00 – 10A5F',
+    ),
+    'Khmer' => array(
+      '1780 - 17FF',
+      '19E0 - 19FF',
+    ),
+    'Lao' => array(
+      '0E80 - 0EFF',
+    ),
+    'Latin' => array(
+      '0041 - 007A',
+      '00A0 - 00FF',
+      '0100 - 017F',
+      '0180 - 024F',
+      '1E00 - 1EFF',
+    ),
+    'Lepcha' => array(
+      '1C00 – 1C4F',
+    ),
+    'Limbu' => array(
+      '1900 - 194F',
+    ),
+    'Lisu' => array(
+      'A4D0 – A4FF',
+    ),
+    'Lycian' => array(
+      '10280 – 1029F',
+    ),
+    'Lydian' => array(
+      '10920 – 1093F',
+    ),
+    'Malayalam' => array(
+      '0D00 - 0D7F',
+    ),
+    'Mandaic' => array(
+      '0840 – 085F',
+    ),
+    'Meetei Mayek' => array(
+      'ABC0 – ABFF',
+    ),
+    'Meroitic Cursive' => array(
+      '109A0 – 109FF',
+    ),
+    'Meroitic Hieroglyphs' => array(
+      '10980 – 1099F',
+    ),
+    'Miao' => array(
+      '16F00 – 16F9F',
+    ),
+    'Mongolian' => array(
+      '1800 - 18AF',
+    ),
+    'Myanmar' => array(
+      '1000 - 109F',
+    ),
+    'New Tai Lue' => array(
+      '1980 - 19DF',
+    ),
+    'Nko' => array(
+      '07C0 – 07FF',
+    ),
+    'Ogham' => array(
+      '1680 - 169F',
+    ),
+    'Ol Chiki' => array(
+      '1C50 - 1C7F',
+    ),
+    'Old Italic' => array(
+      '10300 – 1032F',
+    ),
+    'Old Persian' => array(
+      '103A0 - 103D',
+    ),
+    'Old South Arabian' => array(
+      '10A60 - 10A7F',
+    ),
+    'Old Turkic' => array(
+      '10C00 - 10C4F',
+    ),
+    'Oriya' => array(
+      '0B00 - 0B7F',
+    ),
+    'Osmanya' => array(
+      '10480 - 104AF',
+    ),
+    'Phags Pa' => array(
+      'A840 - A87F',
+    ),
+    'Phoenician' => array(
+      '10900 – 1091F',
+    ),
+    'Rejang' => array(
+      'A930 – A95F',
+    ),
+    'Runic' => array(
+      '16A0 - 16FF',
+    ),
+    'Samaritan' => array(
+      '0800 – 083F',
+    ),
+    'Saurashtra' => array(
+      'A880 – A8DF',
+    ),
+    'Sharada' => array(
+      '11180 – 111DF',
+    ),
+    'Shavian' => array(
+      '10450 - 1047F',
+    ),
+    'Sinhala' => array(
+      '0D80 - 0DFF',
+    ),
+    'Sora Sompeng' => array(
+      '10D0 - 110FF',
+    ),
+    'Sundanese' => array(
+      '1B80 – 1BBF',
+    ),
+    'Syloti Nagri' => array(
+      'A800 – A82F',
+    ),
+    'Syriac' => array(
+      '0700 - 074F',
+    ),
+    'Tagalog' => array(
+      '1700 - 171F',
+    ),
+    'Tagbanwa' => array(
+      '1760 - 177F',
+    ),
+    'Tai Le' => array(
+      '1950 - 197F',
+    ),
+    'Tai Tham' => array(
+      '1A20 – 1AAF',
+    ),
+    'Tai Viet' => array(
+      'AA80 – AADF',
+    ),
+    'Takri' => array(
+      '11680 – 116CF',
+    ),
+    'Tamil' => array(
+      '0B80 - 0BFF',
+    ),
+    'Telugu' => array(
+      '0C00 - 0C7F',
+    ),
+    'Thaana' => array(
+      '0780 - 07BF',
+    ),
+    'Thai' => array(
+      '0E00 - 0E7F',
+    ),
+    'Tibetan' => array(
+      '0F00 - 0FFF',
+    ),
+    'Tifinagh' => array(
+      '2D30 -2D7F',
+    ),
+    'Ugaritic' => array(
+      '10380 - 1039F',
+    ),
+    'Vai' => array(
+      'A500 – A63F',
+    ),
+    'Yi' => array(
+      'A000 - A48F',
+      'A490 - A4CF',
+    ),
+    'Yijing' => array(
+      '4DC0 - 4DFF',
+    ),
+  );
+
+  // Prepare user input for validation.
+  $raw_input = strip_tags($user_input);
+  $raw_input = preg_replace('/[0-9]+/', '', $raw_input);
+  $raw_input = preg_replace('/[[:punct:]]+/', '', trim($raw_input));
+  $raw_input = preg_replace('/\s+/', '', $raw_input);
+
+  // Get number of characters for language script validation.
+  $validate_percent = $config->get('validate_percent');
+  // Calculate iteration threshold based on set percentage.
+  $iteration_threshold = round((strlen($raw_input)*$validate_percent)/100);
+
+  $language_failed = FALSE;
+  for ($i = 0; $i < $iteration_threshold; $i++) {
+    // Get a random letter from text stripped of all special characters and numbers.
+    mb_internal_encoding("UTF-8");
+    $random_char = mb_substr($raw_input, rand(0, mb_strlen($raw_input) - 1), 1);
+    if (!empty(trim($random_char))) {
+      if ($i < $iteration_threshold) {
+        if (_if_char_allowed($random_char, $allowed_scripts, $unicode_character_ranges) == FALSE) {
+          form_set_error("user", $reject_message);
+          $rejected_posts = $rejected_posts + 1;
+          // Save the new value.
+          config_set('protected_forms.settings', 'rejected_posts', $rejected_posts);
+          // Save the watchdog message.
+          $user_input = str_replace($random_char, "<span class=\"red\">{$random_char}</span>", $user_input);
+          watchdog('protected forms', "Rejected language:<em>$user_input</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
+          // Since the first pattern found break the loop.
+          $language_failed = TRUE;
+          break;
+        }
+      }
+    }
+  }
+
+  // Search for reject patterns in the concatenated text.
+  $pattern_failed = FALSE;
+  if ($language_failed == FALSE) {
+    $user_input = strtolower($user_input);
+    foreach ($reject_patterns as $pattern) {
+      if (preg_match("@\b$pattern\b@i", $user_input)) {
+        form_set_error("user", $reject_message);
+        $rejected_posts = $rejected_posts + 1;
+        // Save the new value.
+        config_set('protected_forms.settings', 'rejected_posts', $rejected_posts);
+        // Save the watchdog message.
+        $user_input = str_replace($pattern, "<span class=\"red\">{$pattern}</span>", $user_input);
+        watchdog('protected forms', "Rejected pattern:<em>$user_input</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
+        // Since the first pattern found break the loop.
+        $pattern_failed = TRUE;
+        break;
+      }
+    }
+  }
+
+  /**
+  * Block user if Database Logging and are enabled.
+  */
+  // Prevent admins from getting blocked.
+  if (module_exists('ip_blocking') && module_exists('dblog')) {
+    if ($pattern_failed == TRUE || $language_failed == TRUE) {
+      global $user;
+      if ($user->uid != '1' && !in_array('administrator', $user->roles)) {
+        $ip_address = ip_address();
+        // Count how many times user was cought entering spam.
+        $result = db_select('watchdog', 'w')
+        ->fields('w')
+        ->condition('type', 'protected forms', '=')
+        ->condition('hostname', $ip_address, '=')
+        ->execute();
+        // Block if user exceeded the set limit.
+        $ban_threshold = $config->get('ban_threshold');
+        if ($result->rowCount() >= $ban_threshold) {
+          db_insert('blocked_ips')
+            ->fields(array('ip' => $ip_address, 'reason' => 'Blocked by Protected Forms for spamming.', 'time' => time(), 'uid' => $user->uid))
+            ->execute();
+        }
+      }
+    }
+  }
+}
+
+// Helper function to check if character belongs to allowed language scripts.
+function _if_char_allowed($random_char, $allowed_scripts, $unicode_character_ranges) {
+
+  $char = mb_convert_encoding($random_char, 'UCS-2LE', 'UTF-8');
+  $char = ord(substr($char, 1, 1)) * 256 + ord(substr($char, 0, 1));
+
+  foreach ($allowed_scripts as $key => $lang_script) {
+    // Iterate through only allowed scripts.
+    if ($lang_script != FALSE) {
+      foreach ($unicode_character_ranges[$lang_script] as $key => $range) {
+        $range = explode('-', $range);
+        // Turn first and last Unicode hex to decimals and compare with the character.
+        if (hexdec($range[0]) < $char && $char < hexdec($range[1])) {
+          $found = TRUE;
+        }
+      }
+    }
+  }
+  if (isset($found) && $found == TRUE) {
+    return TRUE;
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * Implements hook_requirements().
+ * Provides stats for rejected submissions on the status page.
+ */
+function protected_forms_requirements($phase) {
+  $requirements = array();
+  $rejected_posts = config_get('protected_forms.settings', 'rejected_posts');
+  $requirements['protected_forms'] = array(
+    'title' => t('Protected forms'),
+    'value' => t('Total of @count submissions containing <a href="@patterns">spam patterns</a> have been rejected.',
+    array('@count' => $rejected_posts, '@patterns' => '/admin/config/content/protected_forms')),
+    'severity' => REQUIREMENT_INFO,
+  );
+  return $requirements;
+}
