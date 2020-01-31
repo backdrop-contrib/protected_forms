@@ -609,7 +609,7 @@ function _protected_forms_validate($form, &$form_state) {
   }
 
   /*
-  * Block user if Database Logging and are enabled.
+  * Block user if Database Logging and IP Blocking modules are enabled.
   */
   if (module_exists('ip_blocking') && module_exists('dblog')) {
     if ($pattern_failed == TRUE || $language_failed == TRUE) {
