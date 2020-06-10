@@ -94,6 +94,17 @@ function protected_forms_config() {
       '#description' => t('Set how many times a user\'s IP must be caught spamming to be banned from the site.'),
     );
   }
+  // Give users option to enable/disable logging if Database Logging is on.
+  if (module_exists('dblog')) {
+    $form['log_rejected'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Log rejected messages?'),
+      '#default_value' => $config->get('log_rejected'),
+      '#required' => FALSE,
+      '#description' => t('Registering every rejected message could quickly flood your website\'s log. If you don\'t need to analyze rejected messages, then you might want to disable logging.'),
+    );
+  }
+
   $form['actions']['#type'] = 'actions';
   $form['actions']['submit'] = array(
     '#type' => 'submit',
@@ -122,6 +133,7 @@ function protected_forms_config_submit($form, &$form_state) {
   if (isset($form_state['values']['ban_threshold'])) {
     $config->set('ban_threshold', $form_state['values']['ban_threshold']);
   }
+  $config->set('log_rejected', $form_state['values']['log_rejected']);
   $config->save();
   backdrop_set_message(t('The configuration options have been saved.'));
 }
@@ -156,7 +168,7 @@ function _protected_forms_validate($form, &$form_state) {
   $reject_patterns = $config->get('reject_patterns');
   $reject_patterns = strtolower($reject_patterns);
   // Get the quantity of previously rejected submissions.
-  $rejected_posts = state_get('protected_forms_rejected_posts', '0');
+  $rejected_count = state_get('protected_forms_rejected_count', '0');
   // Turn multiline string into a single comma separated string.
   $reject_patterns = str_replace(array("\r", "\n"), ",", $reject_patterns);
   $reject_patterns = str_replace(',,', ',', $reject_patterns);
@@ -563,6 +575,8 @@ function _protected_forms_validate($form, &$form_state) {
   $validate_percent = $config->get('validate_percent');
   // Calculate iteration threshold based on set percentage.
   $iteration_threshold = round((strlen($raw_input)*$validate_percent)/100);
+  // Get user's choice if the rejected messages are logged or not.
+  $log_rejected = $config->get('log_rejected');
 
   $language_failed = FALSE;
   for ($i = 0; $i < $iteration_threshold; $i++) {
@@ -573,12 +587,14 @@ function _protected_forms_validate($form, &$form_state) {
       if ($i < $iteration_threshold) {
         if (_if_char_allowed($random_char, $allowed_scripts, $unicode_character_ranges) == FALSE) {
           form_set_error("user", $reject_message);
-          $rejected_posts = $rejected_posts + 1;
+          $rejected_count = $rejected_count + 1;
           // Save the new value.
-          state_set('protected_forms_rejected_posts', $rejected_posts);
+          state_set('protected_forms_rejected_count', $rejected_count);
+          if ($log_rejected == TRUE) {
           // Save the watchdog message.
-          $user_input = str_replace($random_char, "<span class=\"red\">{$random_char}</span>", $user_input);
-          watchdog('protected forms', "Rejected language:<em>$user_input</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
+            $user_input = str_replace($random_char, "<span class=\"red\">{$random_char}</span>", $user_input);
+            watchdog('protected forms', "Rejected language:<em>$user_input</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
+          }
           // Since the first pattern found break the loop.
           $language_failed = TRUE;
           break;
@@ -594,12 +610,14 @@ function _protected_forms_validate($form, &$form_state) {
     foreach ($reject_patterns as $pattern) {
       if (preg_match("@\b$pattern\b@i", $user_input)) {
         form_set_error("user", $reject_message);
-        $rejected_posts = $rejected_posts + 1;
+        $rejected_count = $rejected_count + 1;
         // Save the new value.
-        state_set('protected_forms_rejected_posts', $rejected_posts);
-        // Save the watchdog message.
-        $user_input = str_replace($pattern, "<span class=\"red\">{$pattern}</span>", $user_input);
-        watchdog('protected forms', "Rejected pattern:<em>$user_input</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
+        state_set('protected_forms_rejected_count', $rejected_count);
+        if ($log_rejected == TRUE) {
+          // Save the watchdog message.
+          $user_input = str_replace($pattern, "<span class=\"red\">{$pattern}</span>", $user_input);
+          watchdog('protected forms', "Rejected pattern:<em>$user_input</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
+        }
         // Since the first pattern found break the loop.
         $pattern_failed = TRUE;
         break;
@@ -668,12 +686,12 @@ function _if_char_allowed($random_char, $allowed_scripts, $unicode_character_ran
  */
 function protected_forms_requirements($phase) {
   $requirements = array();
-  $rejected_posts = state_get('protected_forms_rejected_posts', '0');
+  $rejected_count = state_get('protected_forms_rejected_count', '0');
 
   $requirements['protected_forms'] = array(
     'title' => t('Protected forms'),
     'value' => t('Total of @count submissions containing <a href="@patterns">spam patterns</a> have been rejected.',
-    array('@count' => $rejected_posts, '@patterns' => '/admin/config/content/protected_forms')),
+    array('@count' => $rejected_count, '@patterns' => '/admin/config/content/protected_forms')),
     'severity' => REQUIREMENT_INFO,
   );
   return $requirements;

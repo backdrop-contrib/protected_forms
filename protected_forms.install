@@ -10,5 +10,6 @@
  */
 function protected_forms_uninstall() {
   config('protected_forms.settings')->delete();
+  state_del('protected_forms_rejected_count');
   backdrop_set_message(t('Protected Forms module has been uninstalled.'));
 }
