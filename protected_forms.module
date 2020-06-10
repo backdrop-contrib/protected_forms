@@ -132,11 +132,10 @@ function protected_forms_config_submit($form, &$form_state) {
 function protected_forms_form_alter(&$form, &$form_state, $form_id) {
   global $user;
 
-  // Not using user_access(), because user #1 has all privileges per
+  // Not using user_access(), because user #1 always has all privileges per
   // https://api.backdropcms.org/api/backdrop/core%21modules%21user%21user.module/function/user_access/1
-  // and sometimes we need to run tests as user #1.
-  $found_key = array_search(TRUE, array_column(user_role_permissions($user->roles), 'bypass protected_forms'));
-  if ($found_key !== FALSE) {
+  // but sometimes we need to run tests as user #1.
+  if (in_array('bypass protected_forms', user_role_permissions($user->roles)) !== FALSE) {
     // Exit early if current user has bypass permission.
     return;
   }
