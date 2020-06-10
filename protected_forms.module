@@ -61,7 +61,7 @@ function protected_forms_config() {
     '#description' => t('Spam texts can be constructed using mixed characters from multiple languages.
     Validating each character would cause performance overhead, especially when large texts are submitted.
     Therefore, we recommend to start with 20% of randomly selected characters to check, and gradually
-    increase that number in case if characters of dissalowed languages start to slip through the validation.'),
+    increase that number in case if characters of dissalowed languages start to slip in through the validation.'),
   );
   // Message displayed to users when submission is rejected.
   $form['reject_message'] = array(
@@ -156,7 +156,7 @@ function _protected_forms_validate($form, &$form_state) {
   $reject_patterns = $config->get('reject_patterns');
   $reject_patterns = strtolower($reject_patterns);
   // Get the quantity of previously rejected submissions.
-  $rejected_posts = $config->get('rejected_posts');
+  $rejected_posts = state_get('protected_forms_rejected_posts', '0');
   // Turn multiline string into a single comma separated string.
   $reject_patterns = str_replace(array("\r", "\n"), ",", $reject_patterns);
   $reject_patterns = str_replace(',,', ',', $reject_patterns);
@@ -575,7 +575,7 @@ function _protected_forms_validate($form, &$form_state) {
           form_set_error("user", $reject_message);
           $rejected_posts = $rejected_posts + 1;
           // Save the new value.
-          config_set('protected_forms.settings', 'rejected_posts', $rejected_posts);
+          state_set('protected_forms_rejected_posts', $rejected_posts);
           // Save the watchdog message.
           $user_input = str_replace($random_char, "<span class=\"red\">{$random_char}</span>", $user_input);
           watchdog('protected forms', "Rejected language:<em>$user_input</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
@@ -596,7 +596,7 @@ function _protected_forms_validate($form, &$form_state) {
         form_set_error("user", $reject_message);
         $rejected_posts = $rejected_posts + 1;
         // Save the new value.
-        config_set('protected_forms.settings', 'rejected_posts', $rejected_posts);
+        state_set('protected_forms_rejected_posts', $rejected_posts);
         // Save the watchdog message.
         $user_input = str_replace($pattern, "<span class=\"red\">{$pattern}</span>", $user_input);
         watchdog('protected forms', "Rejected pattern:<em>$user_input</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
@@ -668,7 +668,8 @@ function _if_char_allowed($random_char, $allowed_scripts, $unicode_character_ran
  */
 function protected_forms_requirements($phase) {
   $requirements = array();
-  $rejected_posts = config_get('protected_forms.settings', 'rejected_posts');
+  $rejected_posts = state_get('protected_forms_rejected_posts', '0');
+
   $requirements['protected_forms'] = array(
     'title' => t('Protected forms'),
     'value' => t('Total of @count submissions containing <a href="@patterns">spam patterns</a> have been rejected.',
