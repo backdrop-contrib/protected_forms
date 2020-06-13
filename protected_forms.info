@@ -4,4 +4,3 @@ package = Spam control
 backdrop = 1.x
 type = module
 configure = admin/config/content/protected_forms
-stylesheets[all][] = css/protected_forms.css
