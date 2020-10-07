@@ -5,12 +5,6 @@ module that enables rejection of node, comment, webform, user profile, contact
 form and revision log submissions which contain undesired language scripts or
 preset patterns.
 
-Alternative modules
--------------------
-There is an almost perfect alternative and that is the [Antibot](https://github.com/backdrop-contrib/antibot) module. However, it has one important limitation that might not be acceptable for some websites: the visitors' browsers will have to be JavaScript enabled. With the Antibot module Backdrop forms cannot be submitted from disabled JavaScript browsers.
-
-Use **Protected Forms** module instead in case if your Backdrop website must catch all submissions, including those from client browsers with disabled JavaScript.
-
 How it works
 ------------
 If a user attempts to add a content with a trigger pattern in the name, subject,
