@@ -242,7 +242,13 @@ function _protected_forms_validate($form, &$form_state) {
    */
 
   // Get language scripts.
-  $allowed_scripts = $config->get('allowed_scripts');
+  $allowed_scripts_raw = $config->get('allowed_scripts');
+  // Clean up the array.
+  foreach ($allowed_scripts_raw as $key => $value) {
+    if ($value != FALSE) {
+      $allowed_scripts[] = $value;
+    }
+  }
 
   // Have to use the Unicode Character Ranges since only some languages work with
   // $match = preg_match("/\p{$lang_script}/u", $randomChar); PCRE
