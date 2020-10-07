@@ -899,7 +899,7 @@ function _if_char_allowed($random_char, $allowed_scripts, $unicode_character_ran
     // Iterate through only allowed scripts.
     if ($lang_script != FALSE) {
       foreach ($unicode_character_ranges[$lang_script] as $key => $range) {
-        $range = explode('-', $range);
+        $range = explode(' - ', $range);
         // Turn first and last Unicode hex to decimals and compare with the character.
         if (hexdec($range[0]) < $char && $char < hexdec($range[1])) {
           $found = TRUE;
