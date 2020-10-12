@@ -25,8 +25,8 @@ enabled, then threshold can be set for spammers to automatically get banned.
 Installation
 ------------
 Download and place the recommended version of the module in your website's
-modules directory, go to the **Extend** page (`/admin/modules`) and enable the
-**Protected Forms** module.
+modules directory, go to the **Functionality** page (`/admin/modules`) and 
+enable the **Protected Forms** module.
 
 Alternatively, just run on CLI:
 ```
