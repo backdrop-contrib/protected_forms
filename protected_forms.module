@@ -206,6 +206,13 @@ function _protected_forms_validate($form, &$form_state) {
             $user_input .= ' ' . $value;
           }
         }
+        if (!empty($form['submitted'][$key]['#webform_component']['children'])) {
+          foreach ($form['submitted'][$key]['#webform_component']['children'] as $cid => $component) {
+            if ($component['type'] == 'textfield' || $component['type'] == 'textarea') {
+              $check_text .= ' ' . $value[$component['form_key']];
+            }
+          }
+        }
       }
     }
   }
