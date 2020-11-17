@@ -825,7 +825,8 @@ function _protected_forms_validate($form, &$form_state) {
     // Get a random letter from text stripped of all special characters and numbers.
     mb_internal_encoding("UTF-8");
     $random_char = mb_substr($raw_input, rand(0, mb_strlen($raw_input) - 1), 1);
-    if (!empty(trim($random_char))) {
+    $random_char = trim($random_char);
+    if (!empty($random_char)) {
       if ($i < $iteration_threshold) {
         if (_if_char_allowed($random_char, $allowed_scripts, $unicode_character_ranges) == FALSE) {
           form_set_error("user", $reject_message);
