@@ -28,9 +28,8 @@ Download and place the recommended version of the module in your website's
 modules directory, go to the **Functionality** page (`/admin/modules`) and 
 enable the **Protected Forms** module.
 
-Alternatively, just run on CLI:
+Alternatively, if you have [Brush](https://github.com/backdrop-contrib/brush) installed, then just run on CLI:
 ```
-brush -y dl protected_forms
 brush -y en protected_forms
 ```
 
