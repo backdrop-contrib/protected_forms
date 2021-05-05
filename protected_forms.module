@@ -840,7 +840,7 @@ function _protected_forms_validate($form, &$form_state) {
           state_set('protected_forms_rejected_count', $rejected_count);
           if ($log_rejected == TRUE) {
           // Save the watchdog message.
-            $user_input = str_replace($random_char, "<span class=\"red\">{$random_char}</span>", $user_input);
+            $user_input = str_replace($random_char, mb_strtoupper("<strong>{$random_char}</strong>"), $user_input);
             watchdog('protected forms', "Rejected language:<em>$user_input</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
           }
           // Since the first pattern found break the loop.
@@ -863,7 +863,7 @@ function _protected_forms_validate($form, &$form_state) {
         state_set('protected_forms_rejected_count', $rejected_count);
         if ($log_rejected == TRUE) {
           // Save the watchdog message.
-          $user_input = str_replace($pattern, "<span class=\"red\">{$pattern}</span>", $user_input);
+          $user_input = str_replace($pattern, mb_strtoupper("<strong>{$pattern}</strong>"), $user_input);
           watchdog('protected forms', "Rejected pattern:<em>$user_input</em>", $variables = array(), WATCHDOG_WARNING, $link = NULL);
         }
         // Since the first pattern found break the loop.
