@@ -856,7 +856,8 @@ function _protected_forms_validate($form, &$form_state) {
   if ($language_failed == FALSE) {
     $user_input = strtolower($user_input);
     foreach ($reject_patterns as $pattern) {
-      if (preg_match("@\b$pattern\b@i", $user_input)) {
+      $clean_pattern = preg_quote($pattern, '@');
+      if (preg_match("@\b$clean_pattern\b@i", $check_text)) {
         form_set_error("user", $reject_message);
         $rejected_count = $rejected_count + 1;
         // Save the new value.
