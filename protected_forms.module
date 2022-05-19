@@ -855,9 +855,11 @@ function _protected_forms_validate($form, &$form_state) {
   $pattern_failed = FALSE;
   if ($language_failed == FALSE) {
     $user_input = strtolower($user_input);
+    $user_input = str_replace('<p>', '', $user_input);
+    $user_input = str_replace('</p>', '', $user_input);   
     foreach ($reject_patterns as $pattern) {
       $clean_pattern = preg_quote($pattern, '@');
-      if (preg_match("@\b$clean_pattern\b@i", $check_text)) {
+      if (preg_match("@\b$clean_pattern\b@i", $user_input) || ($clean_pattern !== '' && mb_strpos($user_input, $clean_pattern) !== FALSE)) {
         form_set_error("user", $reject_message);
         $rejected_count = $rejected_count + 1;
         // Save the new value.
