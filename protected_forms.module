@@ -242,6 +242,11 @@ function _protected_forms_validate($form, &$form_state) {
       }
     }
   }
+  
+  // Stop validation if no $user_input.
+  if ($user_input == NULL) {
+    return;
+  }
 
   /*
    * Check if a random UTF characters from the text belongs to allowed
