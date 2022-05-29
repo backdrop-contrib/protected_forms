@@ -595,6 +595,9 @@ function _protected_forms_validate($form, &$form_state) {
     'Miao' => [
       '16F00 - 16F9F',
     ],
+    'Miscellaneous Symbols' => [
+      '2600 - 26FF',
+    ],
     'Modi' => [
       '11600 - 1165F',
     ],
