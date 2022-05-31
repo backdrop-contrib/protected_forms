@@ -105,7 +105,7 @@ function protected_forms_config() {
     '#default_value' => strtolower($reject_patterns),
     '#title' => t('Reject patterns'),
     '#required' => TRUE,
-    '#description' => t('Enter words or patterns to reject, separating them with commas or new lines.'),
+    '#description' => t('Enter patterns to reject by separating them with commas or new lines. The longer each pattern, the less likely legitimate submissions are blocked. For example, the reject pattern <strong><em>WIN</em></strong> would prevent submissions of any post that contains words like <strong><em>groWINg</em></strong>, <strong><em>WINdows</em></strong>, etc., unless they are protected in the <strong>Allowed patterns</strong> section.'),
   );
   // Give users option to enable/disable logging if Database Logging is on.
   if (module_exists('dblog')) {
