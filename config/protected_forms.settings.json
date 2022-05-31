@@ -157,6 +157,7 @@
         "Yijing": 0,
         "Zanabazar Square": 0
     },
+    "allowed_patterns": "",
     "log_rejected": "1",
     "ban_threshold": "3",
     "validate_percent": "20",
