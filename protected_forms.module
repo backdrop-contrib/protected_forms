@@ -24,7 +24,7 @@ function protected_forms_menu() {
   $items = array();
   $items['admin/config/content/protected_forms'] = array(
     'title' => 'Protected forms',
-    'description' => 'Configure the allowed language scripts, number of random characters to validate, reject message and reject patterns for the protected forms.',
+    'description' => 'Select allowed language scripts, indicate the percentage of text to validate, list protected patterns, and set the reject message text and the patterns to ban.',
     'page callback' => 'backdrop_get_form',
     'page arguments' => array('protected_forms_config'),
     'access arguments' => array('administer site configuration'),
