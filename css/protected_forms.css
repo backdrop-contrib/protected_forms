@@ -2,11 +2,8 @@
   margin-left: 5px;
   line-height: 1.5em;
 }
-
 #protected-forms-config .form-type-checkboxes .form-item {
-  width: 19%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  width: 24%;
   white-space: nowrap;
   display: inline-block;
   margin: 0px;
