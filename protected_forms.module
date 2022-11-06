@@ -54,18 +54,16 @@ function protected_forms_config() {
     backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css',
   );
 
-  // Allowed language scripts.
+  // Language settings.
   $allowed_scripts = $config->get('allowed_scripts');
   $allowed_scripts_keys = array_keys($allowed_scripts);
   sort($allowed_scripts_keys);
-
   $form['language'] = array(
     '#type' => 'fieldset',
     '#title' => t('Language settings'),
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
-
   $form['language']['allowed_scripts'] = array(
     '#type' => 'checkboxes',
     '#options' => backdrop_map_assoc($allowed_scripts_keys),
@@ -85,48 +83,46 @@ function protected_forms_config() {
     randomly selected characters to check, and if characters of dissalowed languages start slipping in through the
     validation, then gradually increase it to the new optimum.'),
   );
-  // Message displayed to users when submission is rejected.
+
+  // Pattern settings.
   $allowed_patterns = $config->get('allowed_patterns');
-  $form['allowed_patterns'] = array(
+  $reject_patterns = $config->get('reject_patterns');
+  $form['patterns'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Pattern settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['patterns']['allowed_patterns'] = array(
     '#type' => 'textarea',
     '#rows' => 3,
     '#columns' => 60,
     '#default_value' => strtolower($allowed_patterns),
     '#title' => t('Allowed patterns'),
     '#required' => FALSE,
-    '#description' => t('Enter protected words, patterns, professional jargon or terminology of your website\'s industry or specialty which should always pass the validation by separating them with commas or new lines.'),
+    '#description' => t('Enter excluded words, patterns, professional jargon or terminology of your website\'s industry or specialty which should always pass the validation by separating them with commas or new lines.'),
   );
-  // Message displayed to users when submission is rejected.
-  $form['reject_message'] = array(
-    '#type' => 'textfield',
-    '#default_value' => $config->get('reject_message'),
-    '#title' => t('Reject message'),
-    '#size' => 60,
-    '#maxlength' => 256,
-    '#required' => TRUE,
-    '#description' => t('Enter a message to display when submission of undesired pattern is attempted.'),
-  );
-  // Reject patterns.
-  $reject_patterns = $config->get('reject_patterns');
-  $form['reject_patterns'] = array(
+  $form['patterns']['reject_patterns'] = array(
     '#type' => 'textarea',
     '#rows' => 10,
     '#columns' => 60,
     '#default_value' => strtolower($reject_patterns),
     '#title' => t('Reject patterns'),
     '#required' => TRUE,
-    '#description' => t('Enter patterns to reject by separating them with commas or new lines. The longer each pattern, the less likely legitimate submissions are blocked. For example, the reject pattern <strong><em>WIN</em></strong> would prevent submissions of any post that contains words like <strong><em>groWINg</em></strong>, <strong><em>WINdows</em></strong>, etc., unless they are protected in the <strong>Allowed patterns</strong> section.'),
+    '#description' => t('Enter patterns to reject by separating them with commas or new lines. The longer each pattern, the less likely legitimate submissions are blocked. For example, the reject pattern <strong><em>WIN</em></strong> would prevent submissions of any post that contains words like <strong><em>groWINg</em></strong>, <strong><em>WINdows</em></strong>, etc., unless they are excluded in the <strong>Allowed patterns</strong> section.'),
   );
-  // Give users option to enable/disable logging if Database Logging is on.
+
+  // Other settings.
   if (module_exists('dblog')) {
+    $log_rejected = $config->get('log_rejected');
     $form['log_rejected'] = array(
       '#type' => 'checkbox',
-      '#title' => t('Log rejected messages?'),
-      '#default_value' => $config->get('log_rejected'),
+      '#title' => t('Log rejected submissions?'),
+      '#default_value' => $log_rejected,
       '#required' => FALSE,
-      '#description' => t('Registering every rejected message could quickly flood your website\'s log. If you don\'t need to analyze rejected messages, then you might want to disable logging.'),
+      '#description' => t('Registering every rejected post could quickly flood your website\'s log. You might want to disable logging if you don\'t need to analyze rejected messages.'),
     );
-    if (module_exists('ip_blocking')) {
+    if (module_exists('ip_blocking') && module_exists('dblog') && $log_rejected == TRUE) {
       $form['ban_threshold'] = array(
         '#type' => 'textfield',
         '#size' => 3,
@@ -142,6 +138,15 @@ function protected_forms_config() {
       );
     }
   }
+  $form['reject_message'] = array(
+    '#type' => 'textfield',
+    '#default_value' => $config->get('reject_message'),
+    '#title' => t('Reject message'),
+    '#size' => 60,
+    '#maxlength' => 256,
+    '#required' => TRUE,
+    '#description' => t('Enter a message to display when submission of undesired pattern is attempted.'),
+  );
 
   $form['actions']['#type'] = 'actions';
   $form['actions']['submit'] = array(
@@ -359,7 +364,8 @@ function _protected_forms_validate($form, &$form_state) {
   /*
   * Block user if Database Logging and IP Blocking modules are enabled.
   */
-  if (module_exists('ip_blocking') && module_exists('dblog')) {
+
+  if (module_exists('ip_blocking') && module_exists('dblog') && $log_rejected == TRUE) {
     if ($pattern_failed == TRUE || $language_failed == TRUE) {
       global $user;
       // Prevent admins from getting blocked.
