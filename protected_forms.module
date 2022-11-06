@@ -11,7 +11,10 @@
  */
 function protected_forms_permission() {
   return array(
-    'bypass protected_forms' => array(
+    'administer protected forms' => array(
+      'title' => t('Administer <a href="@protected_forms">Protected Forms</a>', array('@protected_forms' => url('admin/config/content/protected_forms'))),
+    ),
+    'bypass protected forms' => array(
       'title' => t('Bypass <a href="@protected_forms">Protected Forms</a> validation', array('@protected_forms' => url('admin/config/content/protected_forms'))),
     ),
   );
@@ -27,10 +30,17 @@ function protected_forms_menu() {
     'description' => 'Select allowed language scripts, indicate the percentage of text to validate, list protected patterns, and set the reject message text and the patterns to ban.',
     'page callback' => 'backdrop_get_form',
     'page arguments' => array('protected_forms_config'),
-    'access arguments' => array('administer site configuration'),
+    'access arguments' => array('administer protected forms'),
     'type' => MENU_NORMAL_ITEM,
   );
   return $items;
+}
+
+/**
+ * Checks permission to manage configuration form.
+ */
+function protected_forms_access_callback() {
+  return user_access('manage protected forms');
 }
 
 /**
@@ -149,7 +159,7 @@ function protected_forms_config_submit($form, &$form_state) {
   $config->set('allowed_scripts', $form_state['values']['allowed_scripts']);
   $config->set('allowed_patterns', $form_state['values']['allowed_patterns']);
   if ($form_state['values']['validate_percent'] > 100) {
-    backdrop_set_message(t('Validating more than 100% of submitted texts would cause unnecessary performance overhead.'), 'error');
+    backdrop_set_message(t('You can not validate more than 100% of submitted texts. Also it\'s recomended to keep this value below 60% to avoid performance overhead.'), 'error');
     $form_state['values']['validate_percent'] = 100;
   }
   elseif ($form_state['values']['validate_percent'] < 5) {
@@ -177,7 +187,7 @@ function protected_forms_form_alter(&$form, &$form_state, $form_id) {
     // Not using user_access(), because user #1 always has all privileges per
     // https://api.backdropcms.org/api/backdrop/core%21modules%21user%21user.module/function/user_access/1
     // but sometimes we need to run tests as user #1.
-    if (in_array('bypass protected_forms', user_role_permissions($user->roles)) !== FALSE) {
+    if (in_array('bypass protected forms', user_role_permissions($user->roles)) !== FALSE) {
       // Exit early if current user has bypass permission.
       return;
     }
