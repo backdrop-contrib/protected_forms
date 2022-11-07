@@ -125,6 +125,12 @@ function protected_forms_config() {
     if (module_exists('ip_blocking') && module_exists('dblog') && $log_rejected == TRUE) {
       $form['ban_threshold'] = array(
         '#type' => 'textfield',
+        '#states' => array(
+          // Only show this field when the 'log_rejected' checkbox is enabled.
+          'visible' => array(
+            ':input[name="log_rejected"]' => array('checked' => TRUE),
+          ),
+        ),
         '#size' => 3,
         '#default_value' => $config->get('ban_threshold'),
         '#title' => t('Threshold for banning'),
