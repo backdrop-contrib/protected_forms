@@ -14,3 +14,7 @@
 #protected-forms-config #edit-actions {
   margin-top: 40px;
 }
+.dblog-event tr td em span {
+  color: red;
+  font-weight: bold;
+}
