@@ -32,10 +32,12 @@ function protected_forms_config() {
         ':input[name="post_size"]' => array('checked' => TRUE),
       ),
     ),
+    '#required' => array(
+      ':input[name="post_size"]' => array('checked' => TRUE),
+    ),
     '#size' => 3,
     '#default_value' => $post_size_threshold,
     '#title' => t('Minimum post-size threshold'),
-    '#required' => TRUE,
     '#description' => t('Set a minimum threshold for number of characters in each post. Submissions containing number of characters less than the set threshold will be automatically rejected. '),
   );
 
