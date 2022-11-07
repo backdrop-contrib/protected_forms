@@ -12,7 +12,7 @@ function protected_forms_config() {
   );
 
   $form['header'] = array(
-    '#markup' => t('The Protected Forms module iterates each post submitted to the website through several checks starting from more simple ones, and only if passed, taking it further to more complex ones trying against the minimum threshold, honeypot, language scripts, reject patterns and rejecting it as soon as fails any check.'),
+    '#markup' => t('The Protected Forms module iterates each post submitted to the website through several checks starting from more simple ones, and only if passed, taking it further to more complex ones trying against the minimum threshold, honeypot, language scripts, reject patterns and rejecting it as soon as it fails any check.'),
   );
 
   $post_size = $config->get('post_size');
