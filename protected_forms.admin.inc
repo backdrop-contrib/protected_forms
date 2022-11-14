@@ -12,33 +12,38 @@ function protected_forms_config() {
   );
 
   $form['header'] = array(
-    '#markup' => t('The Protected Forms module iterates each post submitted to the website through several checks starting from more simple ones, and only if passed, taking it further to more complex ones trying against the minimum threshold, honeypot, language scripts, reject patterns and rejecting it as soon as it fails any check.'),
+    '#markup' => t('The Protected Forms module iterates each submission through several tests starting from simpler ones to more complex ones such as a honeypot trap, then a minimum threshold, then language script checks and finally preset patterns, and rejecting it as soon as it fails any of the checks.'),
   );
 
-  $post_size = $config->get('post_size');
-  $post_size_threshold = $config->get('post_size_threshold');
-
-  $form['post_size'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Set а minimum minimum threshold for posts to pass?'),
-    '#default_value' => $post_size,
-    '#description' => t('Requiring a minimum threshold for posts will prevent some spam submissions consisting of only small number of characters.'),
+  $form['honeypot'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Step 1: Haneypot trap'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
   );
-  $form['post_size_threshold'] = array(
+  $honeypot_trap = $config->get('honeypot_trap');
+  $form['honeypot']['honeypot_trap'] = array(
     '#type' => 'textfield',
-    '#states' => array(
-      // Only show this field when the 'toggle_me' checkbox is enabled.
-      'visible' => array(
-        ':input[name="post_size"]' => array('checked' => TRUE),
-      ),
-    ),
-    '#required' => array(
-      ':input[name="post_size"]' => array('checked' => TRUE),
-    ),
+    '#default_value' => $honeypot_trap,
+    '#title' => t('Honeypot trap name'),
+    '#required' => TRUE,
+    '#description' => t('A honeypot field is an anti-spam technique that baits bots into filling out this hidden field. Human users cannot see the field so they don\'t fill it out. You can use any name for this field that makes sense such as <em>url, website, name, e-mail, city, country,</em> etc, or any other custom name taken from a professional jargon or terminology of your website\'s industry or specialty.'),
+  );
+
+  $post_size_threshold = $config->get('post_size_threshold');
+  $form['post_size'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Step 2: Threshold check'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['post_size']['post_size_threshold'] = array(
+    '#type' => 'textfield',
+    '#required' => TRUE,
     '#size' => 3,
     '#default_value' => $post_size_threshold,
     '#title' => t('Minimum post-size threshold'),
-    '#description' => t('Set a minimum threshold for number of characters in each post. Submissions containing number of characters less than the set threshold will be automatically rejected. '),
+    '#description' => t('Set a minimum threshold for number of characters in each post. Submissions containing less number of characters  than the set threshold are automatically rejected.'),
   );
 
   // Language settings.
@@ -47,7 +52,7 @@ function protected_forms_config() {
   sort($allowed_scripts_keys);
   $form['language'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Language settings'),
+    '#title' => t('Step 3: Language checks'),
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
@@ -76,7 +81,7 @@ function protected_forms_config() {
   $reject_patterns = $config->get('reject_patterns');
   $form['patterns'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Pattern settings'),
+    '#title' => t('Step 4: Pattern checks'),
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
@@ -171,8 +176,15 @@ function protected_forms_config_submit($form, &$form_state) {
     $config->set('ban_threshold', $form_state['values']['ban_threshold']);
   }
   $config->set('log_rejected', $form_state['values']['log_rejected']);
-  $config->set('post_size', $form_state['values']['post_size']);
-  $config->set('post_size_threshold', $form_state['values']['post_size_threshold']);
+  if ($form_state['values']['post_size_threshold'] < 1) {
+    backdrop_set_message(t('The minimum post-size threshold can not be less than 1 character.'), 'error');
+    $config->set('post_size_threshold', '1');
+  }
+  else {
+    $config->set('post_size_threshold', $form_state['values']['post_size_threshold']);
+  }
+
+  $config->set('honeypot_trap', $form_state['values']['honeypot_trap']);
   $config->save();
   backdrop_set_message(t('The configuration options have been saved.'));
 }

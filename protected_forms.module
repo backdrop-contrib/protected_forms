@@ -58,6 +58,17 @@ function protected_forms_form_alter(&$form, &$form_state, $form_id) {
       // Exit early if current user has bypass permission.
       return;
     }
+    $honeypot_trap = config_get('protected_forms.settings', 'honeypot_trap');
+    $form['container'] = array(
+      '#type' => 'container',
+      '#attributes' => array('class' => array('form-item-field-name-title')),
+      '#weight' => '-1',
+    );
+    $form['container'][$honeypot_trap] = array(
+      '#title' => ucfirst($honeypot_trap),
+      '#type' => 'textfield',
+    );
+    $form['#attached']['css'][] = backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css';
     $form['#validate'][] = '_protected_forms_validate';
   }
 }
@@ -67,17 +78,41 @@ function protected_forms_form_alter(&$form, &$form_state, $form_id) {
  */
 function _protected_forms_validate($form, &$form_state) {
   $config = config('protected_forms.settings');
-
-  // Load the list of unicode character ranges.
-  $unicode_character_ranges = _get_unicode_character_ranges();
-  // Get number of characters for language script validation.
-  $validate_percent = $config->get('validate_percent');
-  // Get user defined reject message.
-  $reject_message = $config->get('reject_message');
   // Get the quantity of previously rejected submissions.
   $rejected_count = state_get('protected_forms_rejected_count', '0');
   // Get user's choice if the rejected messages are logged or not.
   $log_rejected = $config->get('log_rejected');
+
+  // Exit early if honeypot trap is triggered.
+  if (!empty($form_state['input']['country'])) {
+    $rejected_count = $rejected_count + 1;
+    // Save the new value.
+    state_set('protected_forms_rejected_count', $rejected_count);
+    if ($log_rejected == TRUE) {
+      // Save the watchdog message.
+      watchdog('protected forms', "Spam caught with honeypot.", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
+    }
+    // Block the spamming IP.
+    if (module_exists('ip_blocking') && module_exists('dblog') && $log_rejected == TRUE) {
+      global $user;
+      // Prevent admins from getting blocked.
+      if ($user->uid != '1' && !in_array('administrator', $user->roles)) {
+        $ip_address = ip_address();
+        db_insert('blocked_ips')
+          ->fields(array('ip' => $ip_address, 'reason' => 'Blocked by Protected Forms for spamming.', 'time' => time(), 'uid' => $user->uid))
+          ->execute();
+        watchdog('protected forms', "Blocked IP address:<em>$ip_address</em> is caught by honeypot field.", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
+      }
+    }
+    return;
+  }
+
+  // Get user defined reject message.
+  $reject_message = $config->get('reject_message');
+  // Load the list of unicode character ranges.
+  $unicode_character_ranges = _get_unicode_character_ranges();
+  // Get number of characters for language script validation.
+  $validate_percent = $config->get('validate_percent');
   // Prepare allowed patterns array.
   $allowed_patterns = $config->get('allowed_patterns');
   $allowed_patterns = _string_to_array($allowed_patterns, 'array');
@@ -156,22 +191,21 @@ function _protected_forms_validate($form, &$form_state) {
   $user_input = _string_to_array($user_input, 'string');
 
   // First check if a post passes minimum threshold.
-  $post_size = $config->get('post_size');
   $post_size_threshold = $config->get('post_size_threshold');
-  if ($post_size == TRUE) {
-    if (mb_strlen ($user_input) < $post_size_threshold) {
-      form_set_error("user", $reject_message);
-      $rejected_count = $rejected_count + 1;
-      // Save the new value.
-      state_set('protected_forms_rejected_count', $rejected_count);
-      if ($log_rejected == TRUE) {
-        // Save the watchdog message.
-        watchdog('protected forms', "Failed minimum threshold: <em>$user_input</em>", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
-      }
-      // Since the first pattern found exit early.
-      return;
+  sdpm($post_size_threshold);
+  if (mb_strlen ($user_input) < $post_size_threshold) {
+    form_set_error("user", $reject_message);
+    $rejected_count = $rejected_count + 1;
+    // Save the new value.
+    state_set('protected_forms_rejected_count', $rejected_count);
+    if ($log_rejected == TRUE) {
+      // Save the watchdog message.
+      watchdog('protected forms', "Failed minimum threshold: <em>$user_input</em>", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
     }
+    // Since the first pattern found exit early.
+    return;
   }
+
 
   // Remove allowed patterns from $user_input.
   foreach($allowed_patterns as $key => $allowed_pattern) {
