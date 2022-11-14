@@ -192,7 +192,6 @@ function _protected_forms_validate($form, &$form_state) {
 
   // First check if a post passes minimum threshold.
   $post_size_threshold = $config->get('post_size_threshold');
-  sdpm($post_size_threshold);
   if (mb_strlen ($user_input) < $post_size_threshold) {
     form_set_error("user", $reject_message);
     $rejected_count = $rejected_count + 1;
