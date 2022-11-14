@@ -2,12 +2,12 @@ Description
 -----------
 **Protected Forms** is a light-weight, non-intrusive spam protection
 module that enables rejection of node, comment, webform, user profile, contact
-form and revision log submissions which contain undesired language scripts or
+form and revision log submissions which triggered honeypot, failed the minimum threshold or contained undesired language scripts or
 preset patterns.
 
 How it works
 ------------
-If a user attempts to add a content with a trigger pattern in the name, subject,
+If a user attempts to add a content that triggers a honeypot field, or of length that is less than set minimum threshold, or that contains a trigger pattern in the name, subject,
 body or any other _textarea_  or _textfield_ type field, then the submission
 is rejected giving the preset error message.
 
@@ -25,7 +25,7 @@ enabled, then threshold can be set for spammers to automatically get banned.
 Installation
 ------------
 Download and place the recommended version of the module in your website's
-modules directory, go to the **Functionality** page (`/admin/modules`) and 
+modules directory, go to the **Functionality** page (`/admin/modules`) and
 enable the **Protected Forms** module.
 
 Alternatively, if you have [Brush](https://github.com/backdrop-contrib/brush) installed, then just run on CLI:
