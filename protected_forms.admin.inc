@@ -17,7 +17,7 @@ function protected_forms_config() {
 
   $form['honeypot'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Step 1: Haneypot trap'),
+    '#title' => t('Step 1: Honeypot trap'),
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
