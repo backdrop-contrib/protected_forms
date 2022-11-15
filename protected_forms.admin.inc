@@ -12,7 +12,7 @@ function protected_forms_config() {
   );
 
   $form['header'] = array(
-    '#markup' => t('The Protected Forms module iterates each submission through several tests starting from simpler ones to more complex ones such as a honeypot trap, then a minimum threshold, then language script checks and finally preset patterns, and rejecting it as soon as it fails any of the checks.'),
+    '#markup' => t('The Protected Forms module tests each submission against several conditions starting from a simple honeypot to other ones that require gradually more calculations such as a minimum threshold, language script checks, preset patterns, and rejecting it as soon as it fails any of the checks.'),
   );
 
   $form['honeypot'] = array(
