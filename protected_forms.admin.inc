@@ -11,10 +11,11 @@ function protected_forms_config() {
     backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css',
   );
 
+  $markup = '<p>' . t('The <em>Protected Forms</em> module tests each submission against several conditions starting from a simple honeypot to other ones that require gradually more calculations such as a minimum threshold, language script checks, preset patterns, and rejecting it as soon as it fails any of the checks.') . '</p>';
+  $markup .= '<p>' . t('Make sure the <a href="@permissions">permissions</a> are set correctly for the <em>Protected Forms</em> to work as expected.', array('@permissions' => '/admin/config/people/permissions#module-protected_forms'))  . '</p>';
   $form['header'] = array(
-    '#markup' => t('The Protected Forms module tests each submission against several conditions starting from a simple honeypot to other ones that require gradually more calculations such as a minimum threshold, language script checks, preset patterns, and rejecting it as soon as it fails any of the checks.'),
+    '#markup' => $markup,
   );
-
   $form['honeypot'] = array(
     '#type' => 'fieldset',
     '#title' => t('Step 1: Honeypot trap'),
@@ -175,7 +176,9 @@ function protected_forms_config_submit($form, &$form_state) {
   if (isset($form_state['values']['ban_threshold'])) {
     $config->set('ban_threshold', $form_state['values']['ban_threshold']);
   }
-  $config->set('log_rejected', $form_state['values']['log_rejected']);
+  if (isset($form_state['values']['log_rejected'])) {
+    $config->set('log_rejected', $form_state['values']['log_rejected']);
+  }
   if ($form_state['values']['post_size_threshold'] < 1) {
     backdrop_set_message(t('The minimum post-size threshold can not be less than 1 character.'), 'error');
     $config->set('post_size_threshold', '1');

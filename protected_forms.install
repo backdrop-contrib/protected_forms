@@ -6,12 +6,16 @@
  */
 
 /**
+ * Implements hook_enable().
+ */
+function protected_forms_enable() {
+  backdrop_set_message(t('Now that the Protected Forms module has been enabled, <a href="@permissions">ensure permissions are set</a> correctly.', array('@permissions' => '/admin/config/people/permissions#module-protected_forms')), 'info');
+}
+
+/**
  * Implements hook_uninstall().
  */
 function protected_forms_uninstall() {
   config('protected_forms.settings')->delete();
   state_del('protected_forms_rejected_count');
-}
-function protected_forms_hook_update_1100() {
-  config('protected_forms.settings')->delete();
 }

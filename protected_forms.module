@@ -49,27 +49,31 @@ function protected_forms_access_callback() {
  */
 function protected_forms_form_alter(&$form, &$form_state, $form_id) {
   global $user;
-
-  if (strpos($form_id, '_node_form') !== FALSE || strpos($form_id, 'comment_node_') !== FALSE || strpos($form_id, 'contact_') !== FALSE || strpos($form_id, 'webform_') !== FALSE) {
-    // Not using user_access(), because user #1 always has all privileges per
-    // https://api.backdropcms.org/api/backdrop/core%21modules%21user%21user.module/function/user_access/1
-    // but sometimes we need to run tests as user #1.
-    if (in_array('bypass protected forms', user_role_permissions($user->roles)) !== FALSE) {
-      // Exit early if current user has bypass permission.
-      return;
+  // List patterns in the names of all submission forms which need to be protected.
+  $form_id_patterns = array('_node_form', 'comment_node_', 'contact_', 'webform_');
+  // Alter the found form.
+  foreach ($form_id_patterns as $form_id_pattern) {
+    if (strpos($form_id, $form_id_pattern) !== FALSE ) {
+      // Not using user_access(), because user #1 always has all privileges per
+      // https://api.backdropcms.org/api/backdrop/core%21modules%21user%21user.module/function/user_access/1
+      // but sometimes we need to run tests as user #1.
+      if (in_array('bypass protected forms', user_role_permissions($user->roles)) !== FALSE) {
+        // Exit early if current user has bypass permission.
+        return;
+      }
+      $honeypot_trap = config_get('protected_forms.settings', 'honeypot_trap');
+      $form['container'] = array(
+        '#type' => 'container',
+        '#attributes' => array('class' => array('form-item-field-name-title')),
+        '#weight' => '-1',
+      );
+      $form['container'][$honeypot_trap] = array(
+        '#title' => ucfirst($honeypot_trap),
+        '#type' => 'textfield',
+      );
+      $form['#attached']['css'][] = backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css';
+      $form['#validate'][] = '_protected_forms_validate';
     }
-    $honeypot_trap = config_get('protected_forms.settings', 'honeypot_trap');
-    $form['container'] = array(
-      '#type' => 'container',
-      '#attributes' => array('class' => array('form-item-field-name-title')),
-      '#weight' => '-1',
-    );
-    $form['container'][$honeypot_trap] = array(
-      '#title' => ucfirst($honeypot_trap),
-      '#type' => 'textfield',
-    );
-    $form['#attached']['css'][] = backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css';
-    $form['#validate'][] = '_protected_forms_validate';
   }
 }
 
@@ -78,57 +82,212 @@ function protected_forms_form_alter(&$form, &$form_state, $form_id) {
  */
 function _protected_forms_validate($form, &$form_state) {
   $config = config('protected_forms.settings');
-  // Get the quantity of previously rejected submissions.
-  $rejected_count = state_get('protected_forms_rejected_count', '0');
-  // Get user's choice if the rejected messages are logged or not.
-  $log_rejected = $config->get('log_rejected');
 
-  // Exit early if honeypot trap is triggered.
-  if (!empty($form_state['input']['country'])) {
-    $rejected_count = $rejected_count + 1;
-    // Save the new value.
-    state_set('protected_forms_rejected_count', $rejected_count);
-    if ($log_rejected == TRUE) {
-      // Save the watchdog message.
-      watchdog('protected forms', "Spam caught with honeypot.", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
-    }
-    // Block the spamming IP.
-    if (module_exists('ip_blocking') && module_exists('dblog') && $log_rejected == TRUE) {
-      global $user;
-      // Prevent admins from getting blocked.
-      if ($user->uid != '1' && !in_array('administrator', $user->roles)) {
-        $ip_address = ip_address();
-        db_insert('blocked_ips')
-          ->fields(array('ip' => $ip_address, 'reason' => 'Blocked by Protected Forms for spamming.', 'time' => time(), 'uid' => $user->uid))
-          ->execute();
-        watchdog('protected forms', "Blocked IP address:<em>$ip_address</em> is caught by honeypot field.", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
-      }
-    }
+  /**
+   * Step 1: Check if honeypot trap is triggered.
+   */
+  if (!empty($form_state['input'][$config->get('honeypot_trap')])) {
+    _reject_submission($form, $form_state, 'Honeypot triggered');
     return;
   }
 
-  // Get user defined reject message.
-  $reject_message = $config->get('reject_message');
+  /**
+   * Step 2: Check if submission failed the minimum threshold.
+   */
+  $user_input = _get_user_input($form, $form_state);
+  if (mb_strlen($user_input) < $config->get('post_size_threshold')) {
+    _reject_submission($form, $form_state, 'Post-size failed');
+    return;
+  }
+
   // Load the list of unicode character ranges.
   $unicode_character_ranges = _get_unicode_character_ranges();
-  // Get number of characters for language script validation.
-  $validate_percent = $config->get('validate_percent');
   // Prepare allowed patterns array.
-  $allowed_patterns = $config->get('allowed_patterns');
-  $allowed_patterns = _string_to_array($allowed_patterns, 'array');
+  $allowed_patterns = _string_to_array($config->get('allowed_patterns'), 'array');
   // Prepare trigger patterns array.
-  $reject_patterns = $config->get('reject_patterns');
-  $reject_patterns = _string_to_array($reject_patterns, 'array');
-  // Get language scripts.
-  $allowed_scripts_raw = $config->get('allowed_scripts');
-  // Clean up the array.
-  foreach ($allowed_scripts_raw as $key => $value) {
+  $reject_patterns = _string_to_array($config->get('reject_patterns'), 'array');
+  // Clean up the allowed scripts array.
+  foreach ($config->get('allowed_scripts') as $key => $value) {
     if ($value != FALSE) {
       $allowed_scripts[] = $value;
     }
   }
-  $ban_threshold = $config->get('ban_threshold');
+  // Clean up $user_input from allowed patterns for further processing.
+  foreach($allowed_patterns as $key => $allowed_pattern) {
+    $user_input = str_replace($allowed_pattern, '', $user_input);
+  }
 
+  /**
+   * Step 3: Check if random UTF characters from the text belong to allowed
+   * language scripts.
+   */
+
+  // Only characters are considered for language validation, so concatenate all into a single raw string.
+  $raw_input = strip_tags($user_input);
+  $raw_input = preg_replace('/[0-9]+/', '', $raw_input);
+  $raw_input = preg_replace('/[[:punct:]]+/', '', trim($raw_input));
+  $raw_input = preg_replace('/\s+/', '', $raw_input);
+
+  // Calculate iteration threshold based on set percentage.
+  $iteration_threshold = round((strlen($raw_input)*$config->get('validate_percent'))/100);
+  for ($i = 0; $i < $iteration_threshold; $i++) {
+    // Get a random letter from text stripped of all special characters and numbers.
+    mb_internal_encoding("UTF-8");
+    $random_char = mb_substr($raw_input, rand(0, mb_strlen($raw_input) - 1), 1);
+    $random_char = trim($random_char);
+    if (!empty($random_char)) {
+      if ($i < $iteration_threshold) {
+        if (_if_char_allowed($random_char, $allowed_scripts, $unicode_character_ranges) == FALSE) {
+          _reject_submission($form, $form_state, 'Language rejected');
+          return;
+        }
+      }
+    }
+  }
+
+  /**
+   * Step 4: Search for reject patterns in the concatenated text.
+   */
+
+  foreach ($reject_patterns as $pattern) {
+    $clean_pattern = preg_quote($pattern, '@');
+    if (preg_match("@\b$clean_pattern\b@i", $user_input) || ($clean_pattern !== '' && mb_strpos($user_input, $clean_pattern) !== FALSE)) {
+      _reject_submission($form, $form_state, 'Pattern rejected');
+      return;
+    }
+  }
+
+}
+
+/**
+ * Implements hook_requirements().
+ * Provides stats for rejected submissions on the status page.
+ */
+function protected_forms_requirements($phase) {
+  $requirements = array();
+  $rejected_count = state_get('protected_forms_rejected_count', '0');
+  $requirements['protected_forms'] = array(
+    'title' => t('Protected forms'),
+    'value' => t('Total of @count submissions containing <a href="@patterns">spam patterns</a> have been rejected.',
+      array('@count' => $rejected_count, '@patterns' => '/admin/config/content/protected_forms')),
+    'severity' => REQUIREMENT_INFO,
+  );
+  return $requirements;
+}
+
+/**
+ * Colorizes the rejected patterns to make analysis easier.
+ * @param $data
+ * @param $block
+ */
+function protected_forms_block_view_system_main_alter(&$data, $block) {
+  if (isset($data['content']['dblog_table'])) {
+    backdrop_add_css(backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css');
+  }
+}
+
+/**
+ * Helper function to check if character belongs to allowed language scripts.
+ * @param $random_char
+ * @param $allowed_scripts
+ * @param $unicode_character_ranges
+ * @return bool
+ */
+function _if_char_allowed($random_char, $allowed_scripts, $unicode_character_ranges) {
+
+  $char = mb_convert_encoding($random_char, 'UCS-2LE', 'UTF-8');
+  $char = ord(substr($char, 1, 1)) * 256 + ord(substr($char, 0, 1));
+
+  foreach ($allowed_scripts as $key => $lang_script) {
+    // Iterate through only allowed scripts.
+    if ($lang_script != FALSE) {
+      foreach ($unicode_character_ranges[$lang_script] as $key => $range) {
+        $range = explode(' - ', $range);
+        // Turn first and last Unicode hex to decimals and compare with the character.
+        if (hexdec($range[0]) < $char && $char < hexdec($range[1])) {
+          $found = TRUE;
+        }
+      }
+    }
+  }
+  if (isset($found) && $found == TRUE) {
+    return TRUE;
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * Helper function to sanitize given strings and return array.
+ */
+function _string_to_array($string, $return_format) {
+  $string = strtolower($string);
+  $string = trim($string);
+  $string = str_replace(array("\r","\n"),",", $string);
+  $string = str_replace(',,', ',', $string);
+  $string = str_replace('@', '\@', $string);
+  if ($return_format == 'array') {
+    $array = explode(",", $string);
+    $array = array_map('trim', $array);
+    array_filter($array);
+    return $array;
+  }
+  else {
+    return $string;
+  }
+}
+
+/**
+ * Helper function that outputs the form error, increments the reject count and logs the incident.
+ */
+function _reject_submission($form, $form_state, $message) {
+  $config = config('protected_forms.settings');
+  $rejected_count = state_get('protected_forms_rejected_count', '0') + 1;
+  state_set('protected_forms_rejected_count', $rejected_count);
+  form_set_error("user", $config->get('reject_message'));
+  if ($config->get('log_rejected') == TRUE) {
+    $user_input = _get_user_input($form, $form_state);
+    // Save the watchdog message.
+    watchdog('protected forms', "$message: <em>$user_input</em>", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
+    // Block the spamming IP.
+    if (module_exists('ip_blocking')) {
+      _ban_ip_address();
+    }
+  }
+}
+
+/**
+ * Helper function that bans the offending IP address.
+ */
+function _ban_ip_address() {
+  global $user;
+  // Prevent admins from getting blocked.
+  if ($user->uid != '1' && !in_array('administrator', $user->roles)) {
+    $ip_address = ip_address();
+    // Count how many times user was caught entering spam.
+    $result = db_select('watchdog', 'w')
+      ->fields('w')
+      ->condition('type', 'protected forms', '=')
+      ->condition('hostname', $ip_address, '=')
+      ->execute();
+    // Block if user exceeded the set limit.
+    $ban_threshold = config_get('protected_forms.settings', 'ban_threshold');
+    if ($result->rowCount() >= $ban_threshold) {
+      db_insert('blocked_ips')
+        ->fields(array('ip' => $ip_address, 'reason' => 'Blocked by Protected Forms for spamming.', 'time' => time(), 'uid' => $user->uid))
+        ->execute();
+      watchdog('protected forms', "IP address <em>$ip_address</em> is blocked for reaching the ban threshold.", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
+    }
+  }
+}
+
+/**
+ * Helper function that collects all text field and text area user input.
+ * @param $form
+ * @param $form_state
+ */
+function _get_user_input($form, $form_state) {
   // Get submitted values.
   $values = $form_state['values'];
 
@@ -190,185 +349,5 @@ function _protected_forms_validate($form, &$form_state) {
   $user_input = str_replace('</p>', '', $user_input);
   $user_input = _string_to_array($user_input, 'string');
 
-  // First check if a post passes minimum threshold.
-  $post_size_threshold = $config->get('post_size_threshold');
-  if (mb_strlen ($user_input) < $post_size_threshold) {
-    form_set_error("user", $reject_message);
-    $rejected_count = $rejected_count + 1;
-    // Save the new value.
-    state_set('protected_forms_rejected_count', $rejected_count);
-    if ($log_rejected == TRUE) {
-      // Save the watchdog message.
-      watchdog('protected forms', "Failed minimum threshold: <em>$user_input</em>", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
-    }
-    // Since the first pattern found exit early.
-    return;
-  }
-
-
-  // Remove allowed patterns from $user_input.
-  foreach($allowed_patterns as $key => $allowed_pattern) {
-    $user_input = str_replace($allowed_pattern, '', $user_input);
-  }
-
-  /**
-   * Check if random UTF characters from the text belong to allowed
-   * language scripts.
-   */
-
-  // Only characters are considered for language validation, so all concatenated into a single raw string.
-  $raw_input = strip_tags($user_input);
-  $raw_input = preg_replace('/[0-9]+/', '', $raw_input);
-  $raw_input = preg_replace('/[[:punct:]]+/', '', trim($raw_input));
-  $raw_input = preg_replace('/\s+/', '', $raw_input);
-
-  // Calculate iteration threshold based on set percentage.
-  $iteration_threshold = round((strlen($raw_input)*$validate_percent)/100);
-
-  $language_failed = FALSE;
-  for ($i = 0; $i < $iteration_threshold; $i++) {
-    // Get a random letter from text stripped of all special characters and numbers.
-    mb_internal_encoding("UTF-8");
-    $random_char = mb_substr($raw_input, rand(0, mb_strlen($raw_input) - 1), 1);
-    $random_char = trim($random_char);
-    if (!empty($random_char)) {
-      if ($i < $iteration_threshold) {
-        if (_if_char_allowed($random_char, $allowed_scripts, $unicode_character_ranges) == FALSE) {
-          form_set_error("user", $reject_message);
-          $rejected_count = $rejected_count + 1;
-          // Save the new value.
-          state_set('protected_forms_rejected_count', $rejected_count);
-          if ($log_rejected == TRUE) {
-            // Save the watchdog message.
-            $user_input = str_replace($random_char,"<span>{$random_char}</span>", $user_input);
-            watchdog('protected forms', "Rejected language: <em>$user_input</em>", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
-          }
-          // Since the first pattern found break the loop.
-          $language_failed = TRUE;
-          break;
-        }
-      }
-    }
-  }
-
-  // Search for reject patterns in the concatenated text.
-  $pattern_failed = FALSE;
-  if ($language_failed == FALSE) {
-    foreach ($reject_patterns as $pattern) {
-      $clean_pattern = preg_quote($pattern, '@');
-      if (preg_match("@\b$clean_pattern\b@i", $user_input) || ($clean_pattern !== '' && mb_strpos($user_input, $clean_pattern) !== FALSE)) {
-        form_set_error("user", $reject_message);
-        $rejected_count = $rejected_count + 1;
-        // Save the new value.
-        state_set('protected_forms_rejected_count', $rejected_count);
-        if ($log_rejected == TRUE) {
-          // Save the watchdog message.
-          $user_input = str_replace($pattern,"<span>{$pattern}</span>", $user_input);
-          watchdog('protected forms', "Rejected pattern: <em>$user_input</em>", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
-        }
-        // Since the first pattern found break the loop.
-        $pattern_failed = TRUE;
-        break;
-      }
-    }
-  }
-
-  /*
-  * Block spammer if Database Logging and IP Blocking modules are enabled.
-  */
-
-  if (module_exists('ip_blocking') && module_exists('dblog') && $log_rejected == TRUE) {
-    if ($pattern_failed == TRUE || $language_failed == TRUE) {
-      global $user;
-      // Prevent admins from getting blocked.
-      if ($user->uid != '1' && !in_array('administrator', $user->roles)) {
-        $ip_address = ip_address();
-        // Count how many times user was caught entering spam.
-        $result = db_select('watchdog', 'w')
-        ->fields('w')
-        ->condition('type', 'protected forms', '=')
-        ->condition('hostname', $ip_address, '=')
-        ->execute();
-        // Block if user exceeded the set limit.
-        if ($result->rowCount() >= $ban_threshold) {
-          db_insert('blocked_ips')
-            ->fields(array('ip' => $ip_address, 'reason' => 'Blocked by Protected Forms for spamming.', 'time' => time(), 'uid' => $user->uid))
-            ->execute();
-          watchdog('protected forms', "Blocked IP address:<em>$ip_address</em> is blocked for reaching the ban threshold.", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
-        }
-      }
-    }
-  }
-}
-
-/**
- * Implements hook_requirements().
- * Provides stats for rejected submissions on the status page.
- */
-function protected_forms_requirements($phase) {
-  $requirements = array();
-  $rejected_count = state_get('protected_forms_rejected_count', '0');
-
-  $requirements['protected_forms'] = array(
-    'title' => t('Protected forms'),
-    'value' => t('Total of @count submissions containing <a href="@patterns">spam patterns</a> have been rejected.',
-      array('@count' => $rejected_count, '@patterns' => '/admin/config/content/protected_forms')),
-    'severity' => REQUIREMENT_INFO,
-  );
-  return $requirements;
-}
-
-// Helper function to check if character belongs to allowed language scripts.
-function _if_char_allowed($random_char, $allowed_scripts, $unicode_character_ranges) {
-
-  $char = mb_convert_encoding($random_char, 'UCS-2LE', 'UTF-8');
-  $char = ord(substr($char, 1, 1)) * 256 + ord(substr($char, 0, 1));
-
-  foreach ($allowed_scripts as $key => $lang_script) {
-    // Iterate through only allowed scripts.
-    if ($lang_script != FALSE) {
-      foreach ($unicode_character_ranges[$lang_script] as $key => $range) {
-        $range = explode(' - ', $range);
-        // Turn first and last Unicode hex to decimals and compare with the character.
-        if (hexdec($range[0]) < $char && $char < hexdec($range[1])) {
-          $found = TRUE;
-        }
-      }
-    }
-  }
-  if (isset($found) && $found == TRUE) {
-    return TRUE;
-  }
-  else {
-    return FALSE;
-  }
-}
-
-// Helper function to sanitize given strings and return array.
-function _string_to_array($string, $return_format) {
-  $string = strtolower($string);
-  $string = trim($string);
-  $string = str_replace(array("\r","\n"),",", $string);
-  $string = str_replace(',,', ',', $string);
-  $string = str_replace('@', '\@', $string);
-  if ($return_format == 'array') {
-    $array = explode(",", $string);
-    $array = array_map('trim', $array);
-    array_filter($array);
-    return $array;
-  }
-  else {
-    return $string;
-  }
-}
-
-/**
- * Colorizes the rejected patterns to make analysis easier.
- * @param $data
- * @param $block
- */
-function protected_forms_block_view_system_main_alter(&$data, $block) {
-  if (isset($data['content']['dblog_table'])) {
-    backdrop_add_css(backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css');
-  }
+  return $user_input;
 }
