@@ -17,6 +17,7 @@
 .dblog-event tr td em span {
   color: red;
   font-weight: bold;
+  text-transform: uppercase;
 }
 .form-item-field-name-title {
   opacity: 0;
