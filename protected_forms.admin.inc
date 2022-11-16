@@ -34,7 +34,7 @@ function protected_forms_config() {
   $post_size_threshold = $config->get('post_size_threshold');
   $form['post_size'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Step 2: Threshold check'),
+    '#title' => t('Step 2: Post-size check'),
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
@@ -43,7 +43,7 @@ function protected_forms_config() {
     '#required' => TRUE,
     '#size' => 3,
     '#default_value' => $post_size_threshold,
-    '#title' => t('Minimum post-size threshold'),
+    '#title' => t('Minimum post-size'),
     '#description' => t('Set a minimum threshold for number of characters in each post. Submissions containing less number of characters  than the set threshold are automatically rejected.'),
   );
 
