@@ -48,23 +48,23 @@ function protected_forms_access_callback() {
  * Implements hook_form_alter().
  */
 function protected_forms_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+  // Exit early if current user has bypass permission.
+  if (in_array('bypass protected forms', user_role_permissions($user->roles)) !== FALSE) {
+    // Not using user_access(), because user #1 always has all privileges per
+    // https://api.backdropcms.org/api/backdrop/core%21modules%21user%21user.module/function/user_access/1
+    // but sometimes we need to run tests as user #1.
+    return;
+  }
   // Exit early if content is being deleted.
   if (strpos($form_id, 'delete') !== FALSE) {
     return;
   }
-  global $user;
   // List patterns in the names of all submission forms which need to be protected.
   $form_id_patterns = array('_node_form', 'comment_node_', 'contact_', 'webform_');
   // Alter the found form.
   foreach ($form_id_patterns as $form_id_pattern) {
     if (strpos($form_id, $form_id_pattern) !== FALSE ) {
-      // Not using user_access(), because user #1 always has all privileges per
-      // https://api.backdropcms.org/api/backdrop/core%21modules%21user%21user.module/function/user_access/1
-      // but sometimes we need to run tests as user #1.
-      if (in_array('bypass protected forms', user_role_permissions($user->roles)) !== FALSE) {
-        // Exit early if current user has bypass permission.
-        return;
-      }
       $honeypot_trap = config_get('protected_forms.settings', 'honeypot_trap');
       $form['container'] = array(
         '#type' => 'container',
