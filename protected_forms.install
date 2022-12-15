@@ -9,7 +9,7 @@
  * Implements hook_enable().
  */
 function protected_forms_enable() {
-  backdrop_set_message(t('Now that the Protected Forms module has been enabled, <a href="@permissions">ensure permissions are set</a> correctly.', array('@permissions' => '/admin/config/people/permissions#module-protected_forms')), 'info');
+  backdrop_set_message(t('Now that the Protected Forms module has been enabled, make sure the module\'s <a href="@configurations">configurations</a> and <a href="@permissions">permissions</a> are set correctly.', array('@configurations' => '/admin/config/content/protected_forms', '@permissions' => '/admin/config/people/permissions#module-protected_forms')), 'info');
 }
 
 /**

@@ -48,6 +48,16 @@ function protected_forms_access_callback() {
  * Implements hook_form_alter().
  */
 function protected_forms_form_alter(&$form, &$form_state, $form_id) {
+  // Prevent processing admin page forms.
+  if (arg(0) == 'admin') {
+    return;
+  }
+  // Bypass excluded forms.
+  $excluded_forms = _string_to_array(config_get('protected_forms.settings', 'excluded_forms'), 'array');
+  if (in_array($form_id, $excluded_forms)) {
+    return;
+  }
+
   global $user;
   // Exit early if current user has bypass permission.
   if (in_array('bypass protected forms', user_role_permissions($user->roles)) !== FALSE) {
@@ -60,25 +70,44 @@ function protected_forms_form_alter(&$form, &$form_state, $form_id) {
   if (strpos($form_id, 'delete') !== FALSE) {
     return;
   }
-  // List patterns in the names of all submission forms which need to be protected.
-  $form_id_patterns = array('_node_form', 'comment_node_', 'contact_', 'webform_');
-  // Alter the found form.
-  foreach ($form_id_patterns as $form_id_pattern) {
-    if (strpos($form_id, $form_id_pattern) !== FALSE ) {
-      $honeypot_trap = config_get('protected_forms.settings', 'honeypot_trap');
-      $form['container'] = array(
-        '#type' => 'container',
-        '#attributes' => array('class' => array('form-item-field-name-title')),
-        '#weight' => '-1',
-      );
-      $form['container'][$honeypot_trap] = array(
-        '#title' => ucfirst($honeypot_trap),
-        '#type' => 'textfield',
-      );
-      $form['#attached']['css'][] = backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css';
-      $form['#validate'][] = '_protected_forms_validate';
+  // Find out if the current form has any textfield or textarea.
+  $found = FALSE;
+  foreach($form as $id => $array) {
+    if (is_array($array)) {
+      foreach($array as $id => $value) {
+        if (!is_array($value)) {
+          if ($value == 'textarea' || $value == 'texfield') {
+            $found = TRUE;
+          }
+        }
+        else {
+          foreach($value as $id => $sub_value) {
+            if (!is_array($sub_value)) {
+              if ($sub_value == 'textarea' || $sub_value == 'texfield') {
+                $found = TRUE;
+              }
+            }
+          }
+        }
+      }
     }
   }
+  if ($found == FALSE) {
+    return;
+  }
+  // Alter the found form.
+  $honeypot_trap = config_get('protected_forms.settings', 'honeypot_trap');
+  $form['container'] = array(
+    '#type' => 'container',
+    '#attributes' => array('class' => array('form-item-field-name-title')),
+    '#weight' => '-1',
+  );
+  $form['container'][$honeypot_trap] = array(
+    '#title' => ucfirst($honeypot_trap),
+    '#type' => 'textfield',
+  );
+  $form['#attached']['css'][] = backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css';
+  $form['#validate'][] = '_protected_forms_validate';
 }
 
 /**
@@ -234,7 +263,7 @@ function _string_to_array($string, $return_format) {
   if ($return_format == 'array') {
     $array = explode(",", $string);
     $array = array_map('trim', $array);
-    array_filter($array);
+    $array = array_values(array_filter($array));
     return $array;
   }
   else {

@@ -10,11 +10,69 @@ function protected_forms_config() {
   $form['#attached']['css'] = array(
     backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css',
   );
-
-  $markup = '<p>' . t('The <em>Protected Forms</em> module tests each submission against several conditions starting from a simple honeypot to ones which gradually require more calculations such as a minimum threshold, language script checks, preset patterns, and rejecting it as soon as it fails any of the checks.') . '</p>';
-  $markup .= '<p>' . t('Make sure the <a href="@permissions">permissions</a> are set correctly for the <em>Protected Forms</em> to work as expected.', array('@permissions' => '/admin/config/people/permissions#module-protected_forms'))  . '</p>';
   $form['header'] = array(
-    '#markup' => $markup,
+    '#markup' => '<p>' . t('Make sure the <a href="@permissions">permissions</a> are set correctly for the <em>Protected Forms</em> to work as expected.', array('@permissions' => '/admin/config/people/permissions#module-protected_forms'))  . '</p>',
+  );
+
+  // Miscellaneous settings.
+  $form['misc'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Miscellaneous settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['misc']['excluded_forms'] = array(
+    '#type' => 'textarea',
+    '#rows' => 3,
+    '#columns' => 60,
+    '#default_value' => $config->get('excluded_forms'),
+    '#title' => t('Excluded forms'),
+    '#required' => FALSE,
+    '#description' => t('Enter ids of those forms submissions to which should always pass by separating them with commas or new lines.'),
+  );
+  $form['misc']['reject_message'] = array(
+    '#type' => 'textarea',
+    '#rows' => 3,
+    '#columns' => 60,
+    '#default_value' => $config->get('reject_message'),
+    '#title' => t('Reject message'),
+    '#required' => TRUE,
+    '#description' => t('Enter a message to display when submission of undesired pattern is attempted.'),
+  );
+  if (module_exists('dblog')) {
+    $log_rejected = $config->get('log_rejected');
+    $form['misc']['log_rejected'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Log rejected submissions?'),
+      '#default_value' => $log_rejected,
+      '#required' => FALSE,
+      '#description' => t('Enable logging if you want to analyze rejected posts or start banning spammers based on their IP addresses.'),
+    );
+    if (module_exists('ip_blocking') && module_exists('dblog') && $log_rejected == TRUE) {
+      $form['misc']['ban_threshold'] = array(
+        '#type' => 'textfield',
+        '#states' => array(
+          // Only show this field when the 'log_rejected' checkbox is enabled.
+          'visible' => array(
+            ':input[name="log_rejected"]' => array('checked' => TRUE),
+          ),
+        ),
+        '#size' => 3,
+        '#default_value' => $config->get('ban_threshold'),
+        '#title' => t('Threshold for banning'),
+        '#required' => TRUE,
+        '#description' => t('Set how many times an IP must be caught spamming before it gets <a href="@banned">banned from the site</a>.', array('@banned' => '/admin/config/people/ip-blocking')),
+      );
+    }
+    else {
+      $form['misc']['enable_ip_blocking'] = array(
+        '#markup' => t('Additionally, if you enable the <a href="@ip">IP address blocking</a> module, then you can configure the automatic blocking of spam-originating IP addresses.', array('@ip' => 'https://backdropcms.org/project/ip_blocking')),
+      );
+    }
+  }
+  // Validation steps.
+  $form['validation_description'] = array(
+    '#markup' => '<p>' . t('The <em>Protected Forms</em> module validates each submission through several conditions starting from simpler ones to gradually more complex ones such as a honeypot trap, a minimum threshold, language script checks, preset patterns, and rejecting it as soon as it fails any of the following steps. Only submissions that pass all checks are posted.') . '</p>',
   );
   $form['honeypot'] = array(
     '#type' => 'fieldset',
@@ -73,7 +131,7 @@ function protected_forms_config() {
     '#required' => TRUE,
     '#description' => t('Spam texts can be constructed using mixed characters from multiple languages. Validating each
     character would cause performance overhead, especially with large texts submitted. Therefore, start with 20% of
-    randomly selected characters to check, and if characters of dissalowed languages start slipping in through the
+    randomly selected characters to check, and if characters of disallowed languages start slipping in through the
     validation, then gradually increase it to the new optimum.'),
   );
 
@@ -105,48 +163,6 @@ function protected_forms_config() {
     '#description' => t('Enter patterns to reject by separating them with commas or new lines. The longer each pattern, the less likely legitimate submissions are blocked. For example, the reject pattern <strong><em>WIN</em></strong> would prevent submissions of any post that contains words like <strong><em>groWINg</em></strong>, <strong><em>WINdows</em></strong>, etc., unless they are excluded in the <strong>Allowed patterns</strong> section.'),
   );
 
-  // Other settings.
-  $form['reject_message'] = array(
-    '#type' => 'textarea',
-    '#rows' => 3,
-    '#columns' => 60,
-    '#default_value' => $config->get('reject_message'),
-    '#title' => t('Reject message'),
-    '#required' => TRUE,
-    '#description' => t('Enter a message to display when submission of undesired pattern is attempted.'),
-  );
-  if (module_exists('dblog')) {
-    $log_rejected = $config->get('log_rejected');
-    $form['log_rejected'] = array(
-      '#type' => 'checkbox',
-      '#title' => t('Log rejected submissions?'),
-      '#default_value' => $log_rejected,
-      '#required' => FALSE,
-      '#description' => t('Enable logging if you want to analyze rejected posts or start banning spammers based on their IP addresses.'),
-    );
-    if (module_exists('ip_blocking') && module_exists('dblog') && $log_rejected == TRUE) {
-      $form['ban_threshold'] = array(
-        '#type' => 'textfield',
-        '#states' => array(
-          // Only show this field when the 'log_rejected' checkbox is enabled.
-          'visible' => array(
-            ':input[name="log_rejected"]' => array('checked' => TRUE),
-          ),
-        ),
-        '#size' => 3,
-        '#default_value' => $config->get('ban_threshold'),
-        '#title' => t('Threshold for banning'),
-        '#required' => TRUE,
-        '#description' => t('Set how many times an IP must be caught spamming before it gets <a href="@banned">banned from the site</a>.', array('@banned' => '/admin/config/people/ip-blocking')),
-      );
-    }
-    else {
-      $form['enable_ip_blocking'] = array(
-        '#markup' => t('Additionally, if you enable the <a href="@ip">IP address blocking</a> module, then you can configure the automatic blocking of spam-originating IP addresses.', array('@ip' => 'https://backdropcms.org/project/ip_blocking')),
-      );
-    }
-  }
-
   $form['actions']['#type'] = 'actions';
   $form['actions']['submit'] = array(
     '#type' => 'submit',
@@ -160,10 +176,11 @@ function protected_forms_config() {
 */
 function protected_forms_config_submit($form, &$form_state) {
   $config = config('protected_forms.settings');
+  $config->set('excluded_forms', $form_state['values']['excluded_forms']);
   $config->set('allowed_scripts', $form_state['values']['allowed_scripts']);
   $config->set('allowed_patterns', $form_state['values']['allowed_patterns']);
   if ($form_state['values']['validate_percent'] > 100) {
-    backdrop_set_message(t('You can not validate more than 100% of submitted texts. Also it\'s recomended to keep this value below 60% to avoid performance overhead.'), 'error');
+    backdrop_set_message(t('You can not validate more than 100% of submitted texts. Also it\'s recommended to keep this value below 60% to avoid performance overhead.'), 'error');
     $form_state['values']['validate_percent'] = 100;
   }
   elseif ($form_state['values']['validate_percent'] < 5) {
