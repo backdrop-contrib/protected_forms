@@ -286,7 +286,13 @@ function _reject_submission($form, $form_state, $watchdog_message, $reason = NUL
       $reason = str_replace('\:', ':', $reason);
       $user_input = str_replace($reason, "<span class=\"red\">{$reason}</span>", $user_input);
     }
-    watchdog('protected forms', "$watchdog_message: <em>$user_input</em>", $variables = array(), WATCHDOG_NOTICE, $link = NULL);
+    if (!empty($user_input)) {
+      $message = "$watchdog_message: <em>$user_input</em>";
+    }
+    else {
+      $message = $watchdog_message;
+    }
+    watchdog('protected forms', $message, $variables = array(), WATCHDOG_NOTICE, $link = NULL);
     // Block the spamming IP.
     if (module_exists('ip_blocking')) {
       _ban_ip_address();
