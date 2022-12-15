@@ -48,6 +48,11 @@ function protected_forms_access_callback() {
  * Implements hook_form_alter().
  */
 function protected_forms_form_alter(&$form, &$form_state, $form_id) {
+  // Exit early if content is being deleted.
+  if (strpos($form_id, 'delete') !== FALSE) {
+    return;
+  }
+  sdpm($form_id);
   global $user;
   // List patterns in the names of all submission forms which need to be protected.
   $form_id_patterns = array('_node_form', 'comment_node_', 'contact_', 'webform_');

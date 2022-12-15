@@ -11,7 +11,7 @@ function protected_forms_config() {
     backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css',
   );
 
-  $markup = '<p>' . t('The <em>Protected Forms</em> module tests each submission against several conditions starting from a simple honeypot to other ones that require gradually more calculations such as a minimum threshold, language script checks, preset patterns, and rejecting it as soon as it fails any of the checks.') . '</p>';
+  $markup = '<p>' . t('The <em>Protected Forms</em> module tests each submission against several conditions starting from a simple honeypot to ones which gradually require more calculations such as a minimum threshold, language script checks, preset patterns, and rejecting it as soon as it fails any of the checks.') . '</p>';
   $markup .= '<p>' . t('Make sure the <a href="@permissions">permissions</a> are set correctly for the <em>Protected Forms</em> to work as expected.', array('@permissions' => '/admin/config/people/permissions#module-protected_forms'))  . '</p>';
   $form['header'] = array(
     '#markup' => $markup,
@@ -26,7 +26,7 @@ function protected_forms_config() {
   $form['honeypot']['honeypot_trap'] = array(
     '#type' => 'textfield',
     '#default_value' => $honeypot_trap,
-    '#title' => t('Honeypot trap name'),
+    '#title' => t('Field name'),
     '#required' => TRUE,
     '#description' => t('A honeypot field is an anti-spam technique that baits bots into filling out this hidden field. Human users cannot see the field so they don\'t fill it out. You can use any name for this field that makes sense such as <em>url, website, name, e-mail, city, country,</em> etc, or any other custom name taken from a professional jargon or terminology of your website\'s industry or specialty.'),
   );
