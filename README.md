@@ -4,6 +4,8 @@ Description
 submissions which triggered honeypot trap, failed the minimum threshold or contained undesired language scripts or
 preset patterns.
 
+![alt Protected Forms](screenshot.jpg)
+
 How it works
 ------------
 If a user attempts to add a content that triggers a honeypot field, or of length that is less than set minimum
