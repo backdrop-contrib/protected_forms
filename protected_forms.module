@@ -38,13 +38,6 @@ function protected_forms_menu() {
 }
 
 /**
- * Checks permission to manage configuration form.
- */
-function protected_forms_access_callback() {
-  return user_access('manage protected forms');
-}
-
-/**
  * Implements hook_form_alter().
  */
 function protected_forms_form_alter(&$form, &$form_state, $form_id) {
@@ -275,10 +268,16 @@ function _string_to_array($string, $return_format) {
  * Helper function that outputs the form error, increments the reject count and logs the incident.
  */
 function _reject_submission($form, $form_state, $watchdog_message, $reason = NULL) {
+  global $user;
   $config = config('protected_forms.settings');
   $rejected_count = state_get('protected_forms_rejected_count', '0') + 1;
   state_set('protected_forms_rejected_count', $rejected_count);
   form_set_error("user", $config->get('reject_message'));
+  // Offer an admin user to exclude the form_id.
+  if (user_access('administer protected forms', $user) == TRUE) {
+    backdrop_set_message(t('As an administrator of the <em>Protected Forms</em> you can <a target="_blank" href="@exclude">exclude</a> this form - <em>@id</em> -
+    from the spam checks.', array('@exclude' => '/admin/config/content/protected_forms', '@id' => $form['#form_id'])), 'error');
+  }
   if ($config->get('log_rejected') == TRUE) {
     $user_input = _get_user_input($form, $form_state);
     // Save the watchdog message.
@@ -306,7 +305,7 @@ function _reject_submission($form, $form_state, $watchdog_message, $reason = NUL
 function _ban_ip_address() {
   global $user;
   // Prevent admins from getting blocked.
-  if ($user->uid != '1' && !in_array('administrator', $user->roles)) {
+  if (user_access('administer protected forms', $user) == FALSE) {
     $ip_address = ip_address();
     // Count how many times user was caught entering spam.
     $result = db_select('watchdog', 'w')

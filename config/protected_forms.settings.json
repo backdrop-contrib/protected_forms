@@ -165,5 +165,5 @@
     "reject_patterns": "http://, https://, www, ftp://, mailto:, smb://, afp://, file://, gopher://, news://, ssl://, sslv2://, sslv3://, tls://, tcp://, udp://, url=\r\nsex, porn, fuck, free, win, captcha, spam, hello. and bye., reading this message, reading my message, are whitelisted, great website, late client, ciao a tutti, viagra, cheap, casino, advertising, keyword, promotion, porntubered,     :,    :, ps: how are you?, beautiful models, privet, beautiful girls, best girls, dosug, trustable, look at the, v7bomdefex, what is it -, mail.ru, email marketing\r\n  ",
     "post_size_threshold": "30",
     "honeypot_trap": "website",
-    "excluded_forms": "post_node_form, page_node_form, webform_node_form, webform_components_form, webform_component_edit_form"
+    "excluded_forms": "post_node_form, page_node_form, user_profile_form, webform_node_form, webform_components_form, webform_component_edit_form"
 }
