@@ -48,5 +48,4 @@ https://github.com/backdrop-contrib/protected_forms/issues.
 
 Credits
 -------
-The [Protected Forms](https://www.drupal.org/project/protected_forms) module had initially been created for Drupal and
-has been ported to Backdrop by [AltaGrade](https://www.altagrade.com) team.
+The [Protected Forms](https://www.drupal.org/project/protected_forms) module had initially been created for Drupal, then ported to Backdrop by [AltaGrade](https://www.altagrade.com) team.
