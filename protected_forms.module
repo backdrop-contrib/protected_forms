@@ -330,24 +330,19 @@ function _ban_ip_address() {
  * @param $form_state
  */
 function _get_user_input($form, $form_state) {
-  // Get submitted values.
-  $values = $form_state['values'];
-
-  // Collect all text area and textfield user inputs.
   $user_input = NULL;
-  if (strpos($values['form_id'], 'webform_') !== FALSE) {
-    // Webforms.
-    if (isset($values['submitted'])) {
-      foreach ($values['submitted'] as $key => $value) {
-        if ($form['submitted'][$key]['#webform_component']['form_key'] == $key) {
-          if ($form['submitted'][$key]['#webform_component']['type'] == 'textfield' || $form['submitted'][$key]['#webform_component']['type'] == 'textarea') {
-            $user_input .= ' ' . $value;
-          }
-        }
-        if (!empty($form['submitted'][$key]['#webform_component']['children'])) {
-          foreach ($form['submitted'][$key]['#webform_component']['children'] as $cid => $component) {
-            if ($component['type'] == 'textfield' || $component['type'] == 'textarea') {
-              $check_text .= ' ' . $value[$component['form_key']];
+
+  if (isset($form_state['values']['submitted'])) { // Webforms.
+    $submitted = $form_state['values']['submitted'];
+    foreach ($submitted as $field_name => $content) {
+      if ($form['submitted'][$field_name]['#type'] == 'textarea' || $form['submitted'][$field_name]['#type'] == 'textfield') {
+        $user_input .= ' ' . $content;
+      }
+      elseif($form['submitted'][$field_name]['#type'] == 'fieldset') {
+        foreach ($form['submitted'][$field_name] as $key => $value) {
+          if (isset($form['submitted'][$field_name][$key]['#type'])) {
+            if ($form['submitted'][$field_name][$key]['#type'] == 'textarea' || $form['submitted'][$field_name][$key]['#type'] == 'textfield') {
+              $user_input .= ' ' . $content[$key];
             }
           }
         }
@@ -355,27 +350,27 @@ function _get_user_input($form, $form_state) {
     }
   }
   else {
-    // Nodes, comments, contact forms.
-    foreach ($values as $key => $value) {
-      if (isset($form[$key])) {
-
-        if (isset($form[$key]['#type'])) {
-          // Node, comment or contact form title (textfield) and contact message (textarea).
-          if ($form[$key]['#type'] == 'textfield' || $form[$key]['#type'] == 'textarea') {
-            $user_input .= ' ' . $form[$key]['#value'];
-          }
-        }
-        if (isset($form[$key][LANGUAGE_NONE][0]['value']['#type'])) {
-          // Node text area or field.
-          if ($form[$key][LANGUAGE_NONE][0]['value']['#type'] == 'textarea' || $form[$key][LANGUAGE_NONE][0]['value']['#type'] == 'textfield') {
-            // Find all values.
-            $array_shift = array_shift($values[$key]);
-            foreach ($array_shift as $var) {
-              if (!empty($var['value'])) {
-                $user_input .= ' ' . $var['value'];
+    $submitted = $form_state['values'];
+    foreach ($submitted as $field_name => $field) {
+      if(is_array($field)) { // Nodes, comments.
+        if (isset($form[$field_name])) {
+          if (isset($form[$field_name]['#language'])) {
+            $language = $form[$field_name]['#language'];
+            foreach ($form[$field_name][$language] as $key => $value) {
+              if (is_numeric($key)) {
+                if (isset($value['value'])) {
+                  if ($value['value']['#type'] == 'textarea' || $value['value']['#type'] == 'textfield') {
+                    $user_input .= ' ' . $field[$language][$key]['value'];
+                  }
+                }
               }
             }
           }
+        }
+      }
+      elseif (isset($form[$field_name])) { // Contact forms.
+        if ($form[$field_name]['#type'] == 'textarea' || $form[$field_name]['#type'] == 'textfield') {
+          $user_input .= ' ' . $field;
         }
       }
     }
