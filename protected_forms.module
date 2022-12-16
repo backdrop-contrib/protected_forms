@@ -65,16 +65,16 @@ function protected_forms_form_alter(&$form, &$form_state, $form_id) {
   }
   // Find out if the current form has any textfield or textarea.
   $found = FALSE;
-  foreach($form as $id => $array) {
+  foreach($form as $array) {
     if (is_array($array)) {
-      foreach($array as $id => $value) {
+      foreach($array as $value) {
         if (!is_array($value)) {
           if ($value == 'textarea' || $value == 'texfield') {
             $found = TRUE;
           }
         }
         else {
-          foreach($value as $id => $sub_value) {
+          foreach($value as $sub_value) {
             if (!is_array($sub_value)) {
               if ($sub_value == 'textarea' || $sub_value == 'texfield') {
                 $found = TRUE;
