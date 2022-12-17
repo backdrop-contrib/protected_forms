@@ -133,13 +133,13 @@ function _protected_forms_validate($form, &$form_state) {
   // Prepare trigger patterns array.
   $reject_patterns = _string_to_array($config->get('reject_patterns'), 'array');
   // Clean up the allowed scripts array.
-  foreach ($config->get('allowed_scripts') as $key => $value) {
+  foreach ($config->get('allowed_scripts') as $value) {
     if ($value != FALSE) {
       $allowed_scripts[] = $value;
     }
   }
   // Clean up $user_input from allowed patterns for further processing.
-  foreach($allowed_patterns as $key => $allowed_pattern) {
+  foreach($allowed_patterns as $allowed_pattern) {
     $user_input = str_replace($allowed_pattern, '', $user_input);
   }
 
@@ -246,6 +246,11 @@ function _if_char_allowed($random_char, $allowed_scripts, $unicode_character_ran
 
 /**
  * Helper function to sanitize given strings and return array.
+ *
+ * @param $string
+ * @param $return_format
+ *
+ * @return array|string|string[]
  */
 function _string_to_array($string, $return_format) {
   $string = strtolower($string);
