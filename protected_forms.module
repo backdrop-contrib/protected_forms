@@ -121,6 +121,9 @@ function _protected_forms_validate($form, $form_state) {
    * Step 2: Check if submission failed the minimum threshold.
    */
   $user_input = _get_user_input($form, $form_state);
+  if (empty($user_input)) {
+    return NULL;
+  }
   if (mb_strlen($user_input) < $config->get('post_size_threshold')) {
     _reject_submission($form, $form_state, 'Post-size failed');
     return NULL;
