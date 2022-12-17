@@ -130,9 +130,8 @@ function _protected_forms_validate($form, &$form_state) {
   $unicode_character_ranges = _get_unicode_character_ranges();
   // Prepare allowed patterns array.
   $allowed_patterns = _string_to_array($config->get('allowed_patterns'), 'array');
-  // Prepare trigger patterns array.
-  $reject_patterns = _string_to_array($config->get('reject_patterns'), 'array');
   // Clean up the allowed scripts array.
+  $allowed_scripts = array();
   foreach ($config->get('allowed_scripts') as $value) {
     if ($value != FALSE) {
       $allowed_scripts[] = $value;
@@ -174,7 +173,8 @@ function _protected_forms_validate($form, &$form_state) {
   /**
    * Step 4: Search for reject patterns in the concatenated text.
    */
-
+  // Prepare trigger patterns array.
+  $reject_patterns = _string_to_array($config->get('reject_patterns'), 'array');
   foreach ($reject_patterns as $pattern) {
     $clean_pattern = preg_quote($pattern, '@');
     if (preg_match("@\b$clean_pattern\b@i", $user_input) || ($clean_pattern !== '' && mb_strpos($user_input, $clean_pattern) !== FALSE)) {
@@ -224,10 +224,10 @@ function _if_char_allowed($random_char, $allowed_scripts, $unicode_character_ran
   $char = mb_convert_encoding($random_char, 'UCS-2LE', 'UTF-8');
   $char = ord(substr($char, 1, 1)) * 256 + ord(substr($char, 0, 1));
 
-  foreach ($allowed_scripts as $key => $lang_script) {
+  foreach ($allowed_scripts as $lang_script) {
     // Iterate through only allowed scripts.
     if ($lang_script != FALSE) {
-      foreach ($unicode_character_ranges[$lang_script] as $key => $range) {
+      foreach ($unicode_character_ranges[$lang_script] as $range) {
         $range = explode(' - ', $range);
         // Turn first and last Unicode hex to decimals and compare with the character.
         if (hexdec($range[0]) < $char && $char < hexdec($range[1])) {
