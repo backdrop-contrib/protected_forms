@@ -89,17 +89,19 @@ function protected_forms_form_alter(&$form, &$form_state, $form_id) {
     return NULL;
   }
   // Alter the found form.
-  $honeypot_trap = config_get('protected_forms.settings', 'honeypot_trap');
-  $form['container'] = array(
-    '#type' => 'container',
-    '#attributes' => array('class' => array('form-item-field-name-title')),
-    '#weight' => '-1',
-  );
-  $form['container'][$honeypot_trap] = array(
-    '#title' => ucfirst($honeypot_trap),
-    '#type' => 'textfield',
-  );
-  $form['#attached']['css'][] = backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css';
+  if (!module_exists('honeypot')) {
+    $honeypot_trap = config_get('protected_forms.settings', 'honeypot_trap');
+    $form['container'] = array(
+      '#type' => 'container',
+      '#attributes' => array('class' => array('form-item-field-name-title')),
+      '#weight' => '-1',
+    );
+    $form['container'][$honeypot_trap] = array(
+      '#title' => ucfirst($honeypot_trap),
+      '#type' => 'textfield',
+    );
+    $form['#attached']['css'][] = backdrop_get_path('module', 'protected_forms') . '/css/protected_forms.css';
+  }
   $form['#validate'][] = '_protected_forms_validate';
 }
 
@@ -112,7 +114,7 @@ function _protected_forms_validate($form, $form_state) {
   /**
    * Step 1: Check if honeypot trap is triggered.
    */
-  if (!empty($form_state['input'][$config->get('honeypot_trap')])) {
+  if (!module_exists('honeypot') && !empty($form_state['input'][$config->get('honeypot_trap')])) {
     _reject_submission($form, $form_state, 'Honeypot triggered');
     return NULL;
   }

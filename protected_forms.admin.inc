@@ -28,7 +28,7 @@ function protected_forms_config() {
     '#default_value' => $config->get('excluded_forms'),
     '#title' => t('Excluded forms'),
     '#required' => FALSE,
-    '#description' => t('Enter ids of those forms submissions to which should always pass by separating them with commas or new lines.'),
+    '#description' => t('Enter form IDs separated with commas or new lines. Some of the forms recommended to exclude are: <em>post_node_form, page_node_form, user_profile_form, webform_node_form, webform_components_form, webform_component_edit_form</em>'),
   );
   $form['misc']['reject_message'] = array(
     '#type' => 'textarea',
@@ -66,13 +66,13 @@ function protected_forms_config() {
     }
     else {
       $form['misc']['enable_ip_blocking'] = array(
-        '#markup' => t('Additionally, if you enable the <a href="@ip">IP address blocking</a> module, then you can configure the automatic blocking of spam-originating IP addresses.', array('@ip' => 'https://backdropcms.org/project/ip_blocking')),
+        '#markup' => t('Additionally, enable the <a href="@ip">IP address blocking</a> module to automatically block spamming IP addresses.', array('@ip' => 'https://backdropcms.org/project/ip_blocking')),
       );
     }
   }
   // Validation steps.
   $form['validation_description'] = array(
-    '#markup' => '<p>' . t('The <em>Protected Forms</em> module validates each submission through several conditions starting from simpler ones to gradually more complex ones such as a honeypot trap, a minimum threshold, language script checks, preset patterns, and rejecting it as soon as it fails any of the following steps. Only submissions that pass all checks are posted.') . '</p>',
+    '#markup' => '<p>' . t('The <em>Protected Forms</em> module validates each submission through several conditions starting from simpler to gradually more complex ones such as a honeypot trap, a minimum threshold, language script checks, preset patterns, and rejecting it as soon as it fails any of the following steps. Only submissions that pass all checks are posted.') . '</p>',
   );
   $form['honeypot'] = array(
     '#type' => 'fieldset',
@@ -80,14 +80,22 @@ function protected_forms_config() {
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
-  $honeypot_trap = $config->get('honeypot_trap');
-  $form['honeypot']['honeypot_trap'] = array(
-    '#type' => 'textfield',
-    '#default_value' => $honeypot_trap,
-    '#title' => t('Field name'),
-    '#required' => TRUE,
-    '#description' => t('A honeypot field is an anti-spam technique that baits bots into filling out this hidden field. Human users cannot see the field so they don\'t fill it out. You can use any name for this field that makes sense such as <em>url, website, name, e-mail, city, country,</em> etc, or any other custom name taken from a professional jargon or terminology of your website\'s industry or specialty.'),
-  );
+  if (module_exists('honeypot')) {
+    $form['honeypot']['enabled'] = array(
+      '#type' => 'markup',
+      '#markup' => t('When a standalone <em>Honeypot</em> module is enabled, <em>Protected Forms</em> rely on its <a href="@honeypot">settings</a>.', array('@honeypot' => '/admin/config/content/honeypot')),
+    );
+  }
+  else {
+    $honeypot_trap = $config->get('honeypot_trap');
+    $form['honeypot']['honeypot_trap'] = array(
+      '#type' => 'textfield',
+      '#default_value' => $honeypot_trap,
+      '#title' => t('Field name'),
+      '#required' => TRUE,
+      '#description' => t('A honeypot field is an anti-spam technique that baits bots into filling out this hidden field. Human users cannot see the field so they don\'t fill it out. You can use any name for this field that makes sense such as <em>url, website, name, e-mail, city, country,</em> etc, or any other custom name taken from a professional jargon or terminology of your website\'s industry or specialty.'),
+    );
+  }
 
   $post_size_threshold = $config->get('post_size_threshold');
   $form['post_size'] = array(
