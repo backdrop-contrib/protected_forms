@@ -43,20 +43,18 @@ following command on the CLI:
 ## Configuration
 
 Go to the **Protected Forms** configuration page
-(`/admin/config/content/protected_forms`), set the allowed language\
-scripts, the rejection message text, and the trigger patterns for
-rejection.
+(`/admin/config/content/protected_forms`), set the allowed language scripts, 
+the rejection message text, and the trigger patterns for rejection.
 
 If you want to protect only anonymous submissions, go to the
 **Permissions** page\
 (`/admin/people/permissions#module-protected_forms`) and check the box
-for the authenticated user role next to the\
-*Bypass Protected Forms validation* option.
+for the authenticated user role next to the *Bypass Protected Forms validation* 
+option.
 
 ## Troubleshooting
 
-Report all issues at\
-https://github.com/backdrop-contrib/protected_forms/issues.
+Report all issues at https://github.com/backdrop-contrib/protected_forms/issues.
 
 ## Credits
 
